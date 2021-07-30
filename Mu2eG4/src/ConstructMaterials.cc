@@ -33,6 +33,7 @@
 #include "Offline/GeometryService/inc/GeomHandle.hh"
 #include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
 #include "Offline/GlobalConstantsService/inc/PhysicsParams.hh"
+#include "Offline/TrackerGeom/inc/Tracker.hh"
 
 // CLHEP includes
 #include "CLHEP/Units/PhysicalConstants.h"
@@ -902,8 +903,10 @@ namespace mu2e {
 
       const double oneTorr = CLHEP::atmosphere/760.;
       GeomHandle<DetectorSolenoid> ds;
+      GeomHandle<Tracker> tracker;
 
-      G4Material* StrawLeak = findMaterialOrThrow("StrawGas");
+      //      G4Material* StrawLeak = findMaterialOrThrow("StrawGas");
+      G4Material* StrawLeak = findMaterialOrThrow(tracker->g4Tracker()->gasMaterialName());
 
       G4double temperature = 300.00*CLHEP::kelvin; // Temperature of the DS
       G4double pressure    = oneTorr * ds->vac_pressure();
