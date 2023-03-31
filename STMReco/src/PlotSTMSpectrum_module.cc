@@ -38,23 +38,27 @@ namespace mu2e {
       using Comment=fhicl::Comment;
       struct Config {
        fhicl::Atom<art::InputTag> stmHitsTag{ Name("stmHitsTag"), Comment("InputTag for STMHitCollection")};
+        fhicl::Atom<std::string> beam_state{ Name("beam_state"), Comment("Beam on or Beam Off")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
       explicit PlotSTMSpectrum(const Parameters& conf);
 
     private:
     void beginJob() override;
-      void analyze(const art::Event& e) override;
-
+    void analyze(const art::Event& e) override;
     void endJob() override;
 
     art::InputTag _stmHitsTag;
-    TH1D* _energySpectrum;
+    TH1D* _energySpectrumOn;
+    TH1D* _energySpectrumOff;
+    TH1D* _timeSpectrum;
+    std::string _beam_state;
   };
 
   PlotSTMSpectrum::PlotSTMSpectrum(const Parameters& config )  :
     art::EDAnalyzer{config},
-    _stmHitsTag(config().stmHitsTag())
+    _stmHitsTag(config().stmHitsTag()),
+    _beam_state(config().beam_state())
   {
     consumes<STMHitCollection>(_stmHitsTag);
   }
@@ -62,21 +66,45 @@ namespace mu2e {
   void PlotSTMSpectrum::beginJob() {
     art::ServiceHandle<art::TFileService> tfs;
     // create TTree
-    _energySpectrum=tfs->make<TH1D>("energySpectrum", "Energy Spectrum", 2000,0,2.0);
+    _energySpectrumOff=tfs->make<TH1D>("energySpectrumOff", "Energy Spectrum Beam Off; Energy (MeV); Counts", 3000,0,3.0);
+    _energySpectrumOn=tfs->make<TH1D>("energySpectrumOn", "Energy Spectrum On; Energy (MeV); Counts", 3000,0,3.0);
+    _timeSpectrum=tfs->make<TH1D>("timeSpectrum","Time Difference Energy", 1000, 0, 1000.0);
   }
 
   void PlotSTMSpectrum::analyze(const art::Event& event) {
-
+    // Goal is to separate the calibrated hits into beam on and off
     auto hitsHandle = event.getValidHandle<STMHitCollection>(_stmHitsTag);
+    const auto& hit = *hitsHandle;
+    int hitSize = int (hit.size());
 
-    for (const auto& hit : *hitsHandle) {
+    for (int i = 0; i < hitSize - 1; i++) {
+      float time = hit[i+1].time() - hit[i].time();
+      _timeSpectrum->Fill(time);
+      //float adcSpectrum = std::fabs(digi.adcs().at(0));
+      // 260 for low rate. 530 for high rate
+      double threshold= 0.0;
+
+      if (_beam_state == "ON")
+        { threshold = 530.0; }
+      else if (_beam_state == "OFF")
+        { threshold = 260.0; }
+
+      if (hit[i+1].time() - hit[i].time() < threshold) {
+        float energy = hit[i].energy();
+        _energySpectrumOn->Fill(energy);
+      }
+      else if (hit[i+1].time() - hit[i].time() > threshold) {
+        float energy = hit[i].energy();
+        _energySpectrumOff->Fill(energy);
+      }
+    //    for (const auto& hit : *hitsHandle) {
       //      float time = hit.time();
-      float energy = hit.energy();
-      _energySpectrum->Fill(energy);
+      //float energy = hit.energy();
+      //_energySpectrum->Fill(energy);
     }
   }
   void PlotSTMSpectrum::endJob() {
-    // Insert pain (fits) here
+    /* Insert pain (fits) here
     double peaks[4] = {0.123,0.162,0.245,0.344};
     // double peak_energy = 0.344;
     //int bin_number = _energySpectrum->GetXaxis()->FindBin(peak_energy);
@@ -103,7 +131,7 @@ namespace mu2e {
                  << ", " << fitresult->ParError(i_par)
                  << std::endl;
          }
-      }
+         }*/
   }
 }
 

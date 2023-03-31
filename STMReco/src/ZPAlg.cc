@@ -58,7 +58,7 @@ namespace mu2e {
         //it is necesary to convert the timing window to the index window: time[i]=i*tadc
         if(trigger-triggerold<int((tafter+tbefore)/tadc)){continue;}
 
-        cout<<"Trigger number: "<<triggercounter<<": "<<trigger<<" Triggertime: "<<trigger*tadc<<endl;
+        //cout<<"Trigger number: "<<triggercounter<<": "<<trigger<<" Triggertime: "<<trigger*tadc<<endl;
         triggercounter++;
 
         for(int k=prenumADCstored; k>0;k--){suppressed_data[counter]=ADC[trigger-k];
@@ -74,8 +74,8 @@ namespace mu2e {
       }
     }
 
-    std::cout <<"Number of triggers/peaks found: "<<triggercounter<<std::endl;
-    std::cout<<"Number of elements in suppressed file: "<<counter<<std::endl;
+    //std::cout <<"Number of triggers/peaks found: "<<triggercounter<<std::endl;
+    //std::cout<<"Number of elements in suppressed file: "<<counter<<std::endl;
 
     //Return array of suppressed data
     return suppressed_data;

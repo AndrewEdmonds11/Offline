@@ -51,7 +51,10 @@ namespace mu2e {
 
     private:
     void beginJob() override;
-      void produce(art::Event& e) override;
+    void produce(art::Event& e) override;
+    void endJob() override;
+    std::vector<int> mwd_event_size;
+    int num_event;
 
     art::InputTag _stmDigisTag;
     mu2e::MWDAlg _mwd;
@@ -67,6 +70,7 @@ namespace mu2e {
   }
 
   void STMMovingWindowDeconvolution::beginJob() {
+    num_event = 0;
   }
     void STMMovingWindowDeconvolution::produce(art::Event& event) {
     // create output
@@ -96,7 +100,29 @@ namespace mu2e {
       }
     }
     std::cout << "AE: No. MWD Digis = " << outputSTMDigis->size() << std::endl;
+    mwd_event_size.push_back(outputSTMDigis->size());
     event.put(std::move(outputSTMDigis));
+    //std::cout << num_event << std::endl;
+    num_event++;
+    //std::cout << mwd_event_size.back() << std::endl;
+  }
+
+  void STMMovingWindowDeconvolution::endJob() {
+    // Calculate mean and std of output digis
+    double size_mean = 0.0;
+    double sum = 0.0;
+    std::cout << "Number of events: " << num_event << std::endl;
+    for (int i = 0; i < num_event; i++)
+      {
+        sum += mwd_event_size.at(i);
+      }
+    size_mean = sum/(num_event);
+    std::cout << "Mean: " << size_mean << std::endl;
+    // out file
+    std::ofstream out;
+    out.open("mwdSize.log", ios::out | ios::app);
+    out << size_mean << std::endl;
+    out.close();
   }
 }
 

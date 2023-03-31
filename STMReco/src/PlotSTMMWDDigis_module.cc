@@ -27,7 +27,7 @@ using namespace std;
 using CLHEP::Hep3Vector;
 namespace mu2e {
 
-  class PlotSTMDigis : public art::EDAnalyzer {
+  class PlotSTMMWDDigis : public art::EDAnalyzer {
     public:
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
@@ -35,7 +35,7 @@ namespace mu2e {
        fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
-      explicit PlotSTMDigis(const Parameters& conf);
+      explicit PlotSTMMWDDigis(const Parameters& conf);
 
     private:
     void beginJob() override;
@@ -47,65 +47,61 @@ namespace mu2e {
     TH1D* _baselineMean;
   };
 
-  PlotSTMDigis::PlotSTMDigis(const Parameters& config )  :
-    art::EDAnalyzer{config}
-    ,_stmDigisTag(config().stmDigisTag())
+  PlotSTMMWDDigis::PlotSTMMWDDigis(const Parameters& config )  :
+    art::EDAnalyzer{config},
+    _stmDigisTag(config().stmDigisTag())
   {
     consumes<STMDigiCollection>(_stmDigisTag);
   }
 
-  void PlotSTMDigis::beginJob() {
+  void PlotSTMMWDDigis::beginJob() {
     art::ServiceHandle<art::TFileService> tfs;
     // create TTree
     _baselineMean=tfs->make<TH1D>("baselineMean", "Energy Spectrum", 5000,0,5000.0);
   }
 
-  void PlotSTMDigis::analyze(const art::Event& event) {
+  void PlotSTMMWDDigis::analyze(const art::Event& event) {
     art::ServiceHandle<art::TFileService> tfs;
     auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
-    int j = 0;
-    TString fname;
-    double sampFreq = 370.370370370;
-    double _ctPerNs = 1.0/(sampFreq*1e-3);
+    //int j = 0;
+    const auto& digi = *digisHandle;
+    int digiSize = int (digi.size());
+    TString fnameOn = Form("DigiSpectrumOn_%d", event.event());
+    TString fnameOff = Form("DigiSpectrumOff_%d", event.event());
 
-    for (const auto& digi : *digisHandle) {
+
+    // Create On and Off Histograms explicitly
+    TH1D* _hWaveformOn = tfs->make<TH1D>(fnameOn,fnameOn+";Time [ns];Samples", 5500928,30701490521,3.07187e10);
+    TH1D* _hWaveformOff = tfs->make<TH1D>(fnameOff,fnameOff+";Time [ns];Samples", 5500928,30701490521,3.07187e10);
+
+    // Double check the separation histogram
+    TH1D* _hTimeSeparation = tfs->make<TH1D>("hTimeSeparation", "hTimeSeparation; Time [ns];Samples", 6e5,0,6e6);
+
+    for (int j = 0; j < digiSize - 1; j++) {
       //     float baselineMean = digi.baselineMean();
       //_baselineMean->Fill(baselineMean);
+      _hTimeSeparation->Fill(digi[j+1].trigTime()-digi[j].trigTime());
 
-      if(digi.trigType().mode() == STMTriggerMode::kExternal)
+      //if(digi[j].trigType().mode() == STMTriggerMode::kExternal)
+      // 5e5 for high rate, 260 for low rate
+      if((digi[j+1].trigTime() - digi[j].trigTime() < 5e5))
         {
-           fname = Form("digiSpectrum_%d_%d_On", event.event(), j);
+           _hWaveformOn->Fill(digi[j].trigTime(), digi[j].adcs().at(0));
         }
       else
         {
-           fname = Form("digiSpectrum_%d_%d_Off", event.event(), j);
+           _hWaveformOff->Fill(digi[j].trigTime(), digi[j].adcs().at(0));
+           std::cout << digi[j].trigTime()*3.125<< std::endl;
         }
-      // Create a histogram
-      TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTime(), digi.trigTime() + digi.adcs().size()*_ctPerNs);
-
-      //TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTime()*3.125, (digi.trigTime() + digi.adcs().size())*_ctPerNs);
-
-      std::cout << "Number of bins: " << digi.adcs().size() << std::endl;
-      std::cout << "Starting point: " << digi.trigTime() << std::endl;
-      std::cout << "Ending point: " << digi.trigTime() + digi.adcs().size()*3.125 << std::endl;
-
-      //Loop through the adcs
-      int i_bin = 1;
-      // Separate into beam on and beam off histograms
       /*
       std::cout << "Trig type = " << digi.trigType().data() << std::endl;
       std::cout << "Mode = " << digi.trigType().mode() << std::endl;
       std::cout << "Trig time = " << digi.trigTime() << std::endl;
       */
-      for (const auto& sample : digi.adcs())
-        {
-          hWaveform->SetBinContent(i_bin, sample);
-          i_bin++;
-        }
-      j++;
+
     }
   }
-  void PlotSTMDigis::endJob() {
+  void PlotSTMMWDDigis::endJob() {
     // Insert pain (fits) here
     // Goal is to automatically find peaks, these peaks are from the Eu152 source, so...
     /*
@@ -122,4 +118,4 @@ namespace mu2e {
   }
 }
 
-DEFINE_ART_MODULE(mu2e::PlotSTMDigis)
+DEFINE_ART_MODULE(mu2e::PlotSTMMWDDigis)

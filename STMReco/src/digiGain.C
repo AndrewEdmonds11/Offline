@@ -1,35 +1,37 @@
-void digiGain()
+void digiGain(std::string detector, std::string beam_state)
 {
-  std::string filename = "stmDigisSpectrum.root";
-  TFile* data = new TFile(filename.c_str(), "READ");
-  /*
-  // Get subset of adcSpectrum
-  double threshold = 500.0;
-  std::vector<double> adcSubset;
-  for(int i = 0; i < data->Get("plotSTMDigisSpectrum/adcSpectrum").size(); ++i) {
-    if (data[i] >= threshold) {
-      adcSubset.push_back(data[i]);
-    }
-  }
-  TH1D* adcSpectrum = (TH1D*) adcSubset;
-  */
+  std::string filename;
+  TFile* data;
+  TH1D* adcSpectrum;
+
   // Without subset
-  TH1D* adcSpectrum = (TH1D*) data->Get("plotSTMDigisSpectrum/adcSpectrum");
-  adcSpectrum->Rebin(10);
+  if (beam_state == "ON") {
+    filename = "stmDigisSpectrumHighRate.root";
+    data = new TFile(filename.c_str(), "READ");
+    adcSpectrum = (TH1D*) data->Get("plotSTMDigisSpectrum/adcSpectrumOn");
+  }
+  else if (beam_state == "OFF") {
+    filename = "stmDigisSpectrumLowRate.root";
+    data = new TFile(filename.c_str(), "READ");
+    adcSpectrum = (TH1D*) data->Get("plotSTMDigisSpectrum/adcSpectrumOff");
+  }
+  // Standard rebin of 10, can change
+  adcSpectrum->Rebin(12);
 
   // Initializing the energy peak and adc peak locations
   const double energyPeaks[4] = {0.898,1.173,1.333,1.836};
   std::vector<double> adcPeaks;
 
   // Finding the location of each peak
-  const int n_peaks = 8;
+  const int n_peaks = 10;
   TSpectrum* spectrum = new TSpectrum(n_peaks);
   int n_found_peaks = spectrum->Search(adcSpectrum);
   for (int i_peak = 0; i_peak < n_found_peaks; ++i_peak)
     {
       double peak_x_pos = *(spectrum->GetPositionX() + i_peak);
       std::cout << peak_x_pos << std::endl;
-      adcPeaks.push_back(peak_x_pos);
+      if (peak_x_pos >= 500.0)
+        adcPeaks.push_back(peak_x_pos);
     }
   // Initializing the output file
   ofstream out;
@@ -46,12 +48,16 @@ void digiGain()
   adcSpectrum->Fit(fline, "qn");
 
   //adcSpectrum->Add(hb,-1);
-
+  std::cout << detector << std::endl;
   //Fitting
   for (int j = 0; j < adcPeaks.size(); ++j)
     {
+      TF1* fitGaus;
       TString fname(Form("fgaus_%d", j));
-      TF1* fitGaus = new TF1(fname, "[0]*TMath::Gaus(x,[1],[2])+[3]*x+[4]",adcPeaks[j]-50,adcPeaks[j]+50);
+      if (detector == "H")
+        fitGaus = new TF1(fname, "[0]*TMath::Gaus(x,[1],[2])+[3]*x+[4] + [5]*TMath::Gaus(x,[6],[7])",adcPeaks[j]-50,adcPeaks[j]+50);
+      else if (detector == "L")
+        fitGaus = new TF1(fname, "[0]*TMath::Gaus(x,[1],[2])+[3]*x+[4]",adcPeaks[j]-250,adcPeaks[j]+250);
       fitGaus->SetParName(0,"Amplitude");
       fitGaus->SetParName(1,"Mean");
       fitGaus->SetParName(2,"Sigma");
@@ -75,22 +81,22 @@ void digiGain()
       for (int k = bin - 5; k < bin + 5; ++k)
         {
           double k_content = adcSpectrum->GetBinContent(k) - hb->GetBinContent(k);
-          //std::cout << "k_content: " << k_content << std::endl;
+          std::cout << "k_content: " << k_content << std::endl;
           if (k_content > halfMax && threshold == false)
             {
               x1 = adcSpectrum->GetBinCenter(k);
               threshold = true;
-              //std::cout << "x1: " << x1 << std::endl;
+              std::cout << "x1: " << x1 << std::endl;
             }
           if (k_content < halfMax && threshold == true)
             {
               x2 = adcSpectrum->GetBinCenter(k);
-              //std::cout << "x2: " << x2 << std::endl;
+              std::cout << "x2: " << x2 << std::endl;
               break;
             }
         }
       double FWHM = x2 - x1;
-      //std::cout << "FWHM: " << FWHM << std::endl;
+      std::cout << "FWHM: " << FWHM << std::endl;
       double sigma = FWHM/2.35;
       std::cout << "Sigma: " << sigma << std::endl;
 
@@ -101,19 +107,23 @@ void digiGain()
 
       // If the found peak is less than 500 ADC sample then don't fit
       if(adcPeaks[j] > 500) {
-      TFitResultPtr fitresult = adcSpectrum->Fit(fitGaus, "RS+");
-      int n_par = fitresult->NPar();
-      //Draw fitted peaks
-      fitGaus->Draw("LSAME");
-      // Export fit parameters to a file
-      for (int i_par = 0; i_par < n_par; ++i_par)
-        {
-          out   << j << ", "
-                << fitresult->GetParameterName(i_par)
-                << ", " << fitresult->Parameter(i_par)
-                << ", " << fitresult->ParError(i_par)
-                << std::endl;
-        }
+        TFitResultPtr fitresult = adcSpectrum->Fit(fitGaus, "RS+");
+        int n_par = fitresult->NPar();
+        std::cout << "fit status = " << fitresult->Status() << std::endl;
+        //Draw fitted peaks
+        fitGaus->Draw("LSAME");
+        // Export fit parameters to a file
+        if ( fitresult->Status() == 0 )
+          {
+            for (int i_par = 0; i_par < n_par; ++i_par)
+              {
+                out   << j << ", "
+                      << fitresult->GetParameterName(i_par)
+                      << ", " << fitresult->Parameter(i_par)
+                      << ", " << fitresult->ParError(i_par)
+                      << std::endl;
+              }
+          }
       }
     }
   out.close();

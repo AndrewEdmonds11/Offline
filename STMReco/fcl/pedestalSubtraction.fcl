@@ -15,16 +15,16 @@ physics: {
   producers : {
     pedestalSubtractHPGe : {
       module_type : STMPedestalSubtraction
-      stmWaveformsTag : "FromSTMTestBeamData:HPGe"
-      verbosityLevel : 1
+      stmDigisTag : "FromSTMTestBeamData:HPGe"
+      verbosityLevel : 0
       pedestal : 3800 # TODO: get correct number
     }
 
     pedestalSubtractLaBr : {
       module_type : STMPedestalSubtraction
-      stmWaveformsTag : "FromSTMTestBeamData:LaBr"
-      verbosityLevel : 1
-      pedestal : 3800 # TODO: get correct number
+      stmDigisTag : "FromSTMTestBeamData:LaBr"
+      verbosityLevel : 0
+      pedestal : 3810 # TODO: get correct number
     }
   }
   filters : {

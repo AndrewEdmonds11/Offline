@@ -176,15 +176,17 @@ namespace mu2e {
     */
     //Deconvolution
     double* a = new double[n];
+    /*
     double pedestal_sum = 0;
     for (int i = 0; i < 100; ++i)
       {
         pedestal_sum += adc_values->adc[i];
       }
-    double pedestal = pedestal_sum/100;
+        double pedestal = pedestal_sum/100;
+    */
     a[0] = adc_values->adc[0];
     for(int i=1; i<n; i++){
-      a[i] = (adc_values->adc[i]-pedestal)-(1-(T0/tau))*(adc_values->adc[i-1]-pedestal) + a[i-1];
+      a[i] = (adc_values->adc[i])-(1-(T0/tau))*(adc_values->adc[i-1]) + a[i-1];
       //out1 << i << ", " << a[i] << std::endl;
     }
     //std::cout << "adc_values .... " << adc_values->adc[0] << " " << adc_values->adc[1] << " " << adc_values->adc[2] << std::endl;
