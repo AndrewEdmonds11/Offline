@@ -14,6 +14,8 @@
 #include "Offline/TrackerConditions/inc/StrawDrift.hh"
 #include "Offline/TrackerConditions/inc/StrawElectronics.hh"
 #include "Offline/TrackerConditions/inc/StrawPhysics.hh"
+#include "Offline/TrackerConditions/inc/DriftInfo.hh"
+#include "Offline/GeneralUtilities/inc/SplineInterpolation.hh"
 #include "Offline/Mu2eInterfaces/inc/ProditionsEntity.hh"
 
 
@@ -37,18 +39,21 @@ namespace mu2e {
           std::vector<double> resslope, bool truncateLongitudinal,
           bool rmsLongErrors, int totTBins, double totTBinWidth,
           int totEBins, double totEBinWidth, std::vector<double> totdtime,
-          bool usederr, std::vector<double> derr,
-          bool usepderr, std::vector<double> parDriftDocas,
-          std::vector<double> parDriftOffsets, std::vector<double> parDriftRes,
+          std::vector<double> totderror,
+          std::vector<double> llDriftTimeOffBins, std::vector<double> llDriftTimeOffset,
+          std::vector<double> llDriftTimeRMSBins, std::vector<double> llDriftTimeRMS,
+          std::vector<double> driftOffBins, std::vector<double> driftOffset,
+          std::vector<double> driftRMSBins, std::vector<double> signedDriftRMS,
+          std::vector<double> unsignedDriftRMS, double dRdTScale,
           double wbuf, double slfac, double errfac, bool usenonlindrift,
-          double lindriftvel, double rres_min, double rres_max,
-          double rres_rad, double mint0doca, double t0shift,
+          double lindriftvel,
           std::array<double, StrawId::_nustraws> pmpEnergyScale,
           double electronicsTimeDelay, double gasGain,
           std::array<double,StrawElectronics::npaths> analognoise,
           std::array<double,StrawElectronics::npaths> dVdI,
           double vsat, double ADCped, double pmpEnergyScaleAvg,
-          std::array<double, StrawId::_nustraws> strawHalfvp) :
+          std::array<double, StrawId::_nustraws> strawHalfvp,
+          bool driftIgnorePhi) :
         ProditionsEntity(cxname),
         _strawDrift(strawDrift),
         _strawElectronics(strawElectronics),
@@ -58,28 +63,38 @@ namespace mu2e {
         _resslope(resslope), _truncateLongitudinal(truncateLongitudinal),
         _rmsLongErrors(rmsLongErrors), _totTBins(totTBins), _totTBinWidth(totTBinWidth),
         _totEBins(totEBins), _totEBinWidth(totEBinWidth),
-        _totdtime(totdtime), _usederr(usederr),
-        _derr(derr), _usepderr(usepderr), _parDriftDocas(parDriftDocas),
-        _parDriftOffsets(parDriftOffsets), _parDriftRes(parDriftRes),
+        _totdtime(totdtime),
+        _totderror(totderror),
+        _llDriftTimeOffBins(llDriftTimeOffBins),
+        _llDriftTimeOffset(llDriftTimeOffset),
+        _llDriftTimeRMSBins(llDriftTimeRMSBins),
+        _llDriftTimeRMS(llDriftTimeRMS),
+        _driftOffBins(driftOffBins),
+        _driftOffset(driftOffset),
+        _driftRMSBins(driftRMSBins),
+        _signedDriftRMS(signedDriftRMS),
+        _unsignedDriftRMS(unsignedDriftRMS),
+        _dRdTScale(dRdTScale),
         _wbuf(wbuf), _slfac(slfac), _errfac(errfac),
         _usenonlindrift(usenonlindrift), _lindriftvel(lindriftvel),
-        _rres_min(rres_min), _rres_max(rres_max), _rres_rad(rres_rad),
-        _mint0doca(mint0doca), _t0shift(t0shift),
         _pmpEnergyScale(pmpEnergyScale),
         _electronicsTimeDelay(electronicsTimeDelay),
         _gasGain(gasGain), _analognoise(analognoise),
         _dVdI(dVdI), _vsat(vsat), _ADCped(ADCped),
         _pmpEnergyScaleAvg(pmpEnergyScaleAvg),
-        _strawHalfvp(strawHalfvp) {}
+        _strawHalfvp(strawHalfvp),
+        _driftIgnorePhi(driftIgnorePhi){ }
 
       virtual ~StrawResponse() {}
 
+      double driftDistanceToTime(StrawId strawId, double ddist, double phi) const;
+      double driftInstantSpeed(StrawId strawId, double ddist, double phi) const;
+      double driftTimeError(StrawId strawId, double ddist, double phi) const;
+      double driftTimeOffset(StrawId strawId, double dtime, double phi) const;
+
       bool wireDistance(Straw const& straw, double edep, double dt,
           double& wdist, double& wderr, double& halfpv) const;
-      bool useDriftError() const { return _usederr; }
-      bool useParameterizedDriftError() const { return _usepderr; }
       bool useNonLinearDrift() const { return _usenonlindrift; }
-      double Mint0doca() const { return _mint0doca;}
       double strawGain() const { return _strawPhysics->strawGain();}
 
       double halfPropV(StrawId strawId, double kedep) const;
@@ -93,16 +108,10 @@ namespace mu2e {
         _timeOffsetStrawCal = timeOffsetStrawCal;
       }
 
-      double driftDistanceToTime(StrawId strawId, double ddist, double phi) const;
-      double driftTimeToDistance(StrawId strawId, double dtime, double phi) const;
-      double driftInstantSpeed(StrawId strawId, double ddist, double phi) const;
-      double driftConstantSpeed() const {return _lindriftvel;} // constant value used for annealing errors, should be close to average velocity
-      double driftTimeMaxError() const {return _rres_max/_lindriftvel;} // constant value used for initialization
-      double driftDistanceError(StrawId strawId, double ddist, double phi, double DOCA) const;
-      double driftDistanceOffset(StrawId strawId, double ddist, double phi, double DOCA) const;
+      DriftInfo driftInfo(StrawId strawId, double dtime, double phi) const;
 
-      double driftTimeError(StrawId strawId, double ddist, double phi, double DOCA) const;
-      double driftTimeOffset(StrawId strawId, double ddist, double phi, double DOCA) const;
+      double driftTimeToDistance(StrawId strawId, double dtime, double phi) const;
+      double driftConstantSpeed() const {return _lindriftvel;} // constant value used for annealing errors, should be close to average velocity
 
       double peakMinusPedestalEnergyScale() const { return _pmpEnergyScaleAvg; }
       double peakMinusPedestalEnergyScale(StrawId sid) const { return _pmpEnergyScale[sid.uniqueStraw()]; }
@@ -111,15 +120,13 @@ namespace mu2e {
       double currentToVoltage(StrawElectronics::Path ipath) const { return _dVdI[ipath]; }
       double saturatedResponse(double vlin) const;
       double ADCPedestal() const { return _ADCped; };
-      double t0shift() const { return _t0shift; }
 
       // converts times from TDC times to time relative to Event Window
       // removes channel to channel delays and overall electronics time delay
       void calibrateTimes(TrkTypes::TDCValues const& tdc, TrkTypes::TDCTimes &times, const StrawId &id) const;
       // approximate drift distatnce from ToT value
-      double driftTime(Straw const& straw, double tot, double edep) const;
-      double pathLength(Straw const& straw, double tot) const;
-      //      double pathLength(StrawHit const& strawhit, double theta) const;
+      double TOTdriftTime(Straw const& straw, double tot, double edep) const;
+      double TOTdriftTimeError(Straw const& straw, double tot, double edep) const;
 
       void print(std::ostream& os) const;
       void printVector(std::ostream& os, std::string const& name,
@@ -139,11 +146,26 @@ namespace mu2e {
       inline double ionizationEnergy(double q) const { return _strawPhysics->ionizationEnergy(q); }
 
       double wpRes(double kedep, double wdist) const;
+
+      // access raw drift information
+      auto const& strawDrift() const { return *_strawDrift; }
+      // BTrk legacy functions.  These will be retired with BTrk
+      // DO NOT write any new code referencing these functions, or modify them (except to fix bugs)
+      // values are intentionally hard-coded: no modification is allowed
+      double BTrk_Mint0doca() const { return -0.2; }
+      double BTrk_driftDistanceToTime(StrawId strawId, double ddist, double phi) const;
+      double BTrk_driftInstantSpeed(StrawId strawId, double ddist, double phi) const;
+      double BTrk_driftDistanceError(StrawId strawId, double ddist, double phi) const;
+      double BTrk_driftTimeToDistance(StrawId strawId, double dtime, double phi) const;
+
     private:
 
       // helper functions
       static double PieceLine(std::vector<double> const& xvals,
           std::vector<double> const& yvals, double xval);
+      static double PieceLineDrift(std::vector<double> const& bins, std::vector<double> const& yvals, double xval);
+      static void interpolateCalib(std::vector<double> const& bins,std::vector<double> const& yvals, double xval,
+          int halfrange, double& value, double& slope);
 
       StrawDrift::cptr_t _strawDrift;
       StrawElectronics::cptr_t _strawElectronics;
@@ -168,24 +190,25 @@ namespace mu2e {
       size_t _totEBins;
       double _totEBinWidth;
       std::vector<double> _totdtime;
-      bool _usederr; // flag to use the doca-dependent calibration of the drift error
-      std::vector<double> _derr; // parameters describing the drift error function
-      bool _usepderr; // flag to use calculated version of drift error calculation
-      std::vector<double> _parDriftDocas;
-      std::vector<double> _parDriftOffsets;
-      std::vector<double> _parDriftRes;
+      std::vector<double> _totderror;
+      std::vector<double> _llDriftTimeOffBins;
+      std::vector<double> _llDriftTimeOffset;
+      std::vector<double> _llDriftTimeRMSBins;
+      std::vector<double> _llDriftTimeRMS;
+      std::vector<double> _driftOffBins;
+      std::vector<double> _driftOffset;
+      std::vector<double> _driftRMSBins;
+      std::vector<double> _signedDriftRMS;
+      std::vector<double> _unsignedDriftRMS;
+      double _dRdTScale;
       double _wbuf; // buffer at the edge of the straws, in terms of sigma
       double _slfac; // factor of straw length to set 'missing cluster' hits
       double _errfac; // error inflation for 'missing cluster' hits
 
       bool _usenonlindrift;
       double _lindriftvel;
-      double _rres_min;
-      double _rres_max;
-      double _rres_rad;
       double _mint0doca;  // minimum doca for t0 calculation.  Note this is a SIGNED QUANTITITY
 
-      double _t0shift;
       std::array<double, StrawId::_nustraws> _pmpEnergyScale;
       std::array<double, StrawId::_nupanels> _timeOffsetPanel;
       std::array<double, StrawId::_nustraws> _timeOffsetStrawHV;
@@ -198,6 +221,9 @@ namespace mu2e {
       double _ADCped;
       double _pmpEnergyScaleAvg;
       std::array<double, StrawId::_nustraws> _strawHalfvp;
+
+      bool _driftIgnorePhi;
+      static double rstraw_; // straw radius, = maximum drift distance
   };
 }
 #endif

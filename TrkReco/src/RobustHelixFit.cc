@@ -769,7 +769,7 @@ void RobustHelixFit::findHistPeaks(std::vector<int>&hist_sum, int binWidth,
   int    bin_index(0);
 
   for (int ipeak=0; ipeak<_initFZFrequencyNMaxPeaks; ++ipeak){
-    //      if (ipeak>0) bin_index = (xmp[ipeak-1] + 0.4*lambda[ipeak-1]*6.28 - start_dz)/bin_size;//shifting the starting pos 1/2 pitch from the previous peak
+    //      if (ipeak>0) bin_index = (xmp[ipeak-1] + 0.4*lambda[ipeak-1]*(2.0*M_PI) - start_dz)/bin_size;//shifting the starting pos 1/2 pitch from the previous peak
     if (ipeak>0) bin_index = (xmp[ipeak-1] + _initFZFrequencyNSigma*sigma[ipeak-1])/binWidth;//shifting the starting pos 1/2 pitch from the previous peak
 
     if (bin_index >= _initFZFrequencyArraySize-_initFZFrequencyBinsToIntegrate)       break;
@@ -790,9 +790,9 @@ void RobustHelixFit::findHistPeaks(std::vector<int>&hist_sum, int binWidth,
         xmp[ipeak]  += shift_dz;
         indexPeak[ipeak] = ix;
         // if (ipeak ==0 )
-        //   lambda[ipeak] = xmp[ipeak]/(6.28*(peaks_found+1));//ipeak!=0 ? xmp[ipeak]/(6.28*(ipeak)) : xmp[ipeak]/(6.28);
+        //   lambda[ipeak] = xmp[ipeak]/((2.0*M_PI)*(peaks_found+1));//ipeak!=0 ? xmp[ipeak]/((2.0*M_PI)*(ipeak)) : xmp[ipeak]/(2.0*M_PI);
         // else {
-        //   lambda[ipeak] = (xmp[ipeak] - xmp[ipeak-1])/6.28;
+        //   lambda[ipeak] = (xmp[ipeak] - xmp[ipeak-1])/(2.0*M_PI);
         // }
         swmax[ipeak] = sw;
       }
@@ -892,14 +892,14 @@ bool RobustHelixFit::initFZ_from_dzFrequency(RobustHelixFinderData& HelixData, i
     if (swmax[i]>minNCounts){
       if ( (xmp[i] - _initFZFrequencyNSigma*sigma[i]>0) && (xmp[i-1] - _initFZFrequencyNSigma*sigma[i-1]>0)){
         double   wg = sqrt(swmax[i]*swmax[i-1]);
-        weight_lambda += wg*(xmp[i] - xmp[i-1])/6.28;//(lambda[i]*swmax[i]);
+        weight_lambda += wg*(xmp[i] - xmp[i-1])/(2.0*M_PI);//(lambda[i]*swmax[i]);
         total_wg   += wg;
       }
     }
   }
   weight_lambda /= total_wg;
 
-  if (peaks_found == 1) weight_lambda = xmp[first_peak]/6.28;
+  if (peaks_found == 1) weight_lambda = xmp[first_peak]/(2.0*M_PI);
 
   float lambda_final = weight_lambda*dzdphisign;
 
@@ -1412,61 +1412,34 @@ bool RobustHelixFit::goodLambda(Helicity const& h, float lambda) const {
 }
 
 float RobustHelixFit::evalWeightXY(const ComboHit& Hit, XYVec& Center){
-  // XYVec rvec = (XYVec(Hit.pos().x(),Hit.pos().y())-Center);
-  // XYVec rdir = rvec.unit();
-  // float wdot = rdir.Dot(XYVec(Hit.wdir().x(),Hit.wdir().y()));
-  // float wdot2 = wdot*wdot;
-  // float tdot2 = 1.0 - wdot2;
-  // float err2 = wdot2*Hit.wireErr2() + tdot2*Hit.transErr2();
-  // float wt = 1/err2;// or 1.0/sqrtf(err2); // or 1/err2?
-
-  float    transErr = 5./sqrt(12.);
-  //scale the error based on the number of the strawHits that are within teh ComboHit
-  if (Hit.nStrawHits() > 1) transErr *= 1.5;
-  float    transErr2 = transErr*transErr;
-
-  static const XYZVectorF _zdir(0.0,0.0,1.0);
-  XYZVectorF _sdir  = _zdir.Cross(Hit._wdir);
-
   float x   = Hit.pos().x();
   float y   = Hit.pos().y();
   float dx  = x-Center.x();
   float dy  = y-Center.y();
-  float dxn = dx*_sdir.x()+dy*_sdir.y();
+  float dxn = dx*Hit.vDir().x()+dy*Hit.vDir().y();
 
   float costh2 = dxn*dxn/(dx*dx+dy*dy);
   float sinth2 = 1-costh2;
 
-  // float e2     = _ew*_ew*sinth2+rs*rs*costh2;
-  float e2     = Hit.wireErr2()*sinth2+transErr2*costh2;
+  float e2     = Hit.uVar()*sinth2+Hit.vVar()*costh2;
   float wt     = 1./e2;
 
   return wt;
 }
 
 float RobustHelixFit::evalWeightZPhi(const ComboHit& Hit, XYVec& Center, float Radius){
-  float    transErr = 5./sqrt(12.);
-  //scale the error based on the number of the strawHits that are within teh ComboHit
-  if (Hit.nStrawHits() > 1) transErr *= 1.5;
-  float    transErr2 = transErr*transErr;
-
   float x  = Hit.pos().x();
   float y  = Hit.pos().y();
   float dx = x-Center.x();
   float dy = y-Center.y();
 
-  static const XYZVectorF _zdir(0.0,0.0,1.0);
-  XYZVectorF _sdir  = _zdir.Cross(Hit._wdir);
-
-  float dxn    = dx*_sdir.x()+dy*_sdir.y();
+  float dxn    = dx*Hit.vDir().x()+dy*Hit.vDir().y();
 
   float costh2 = dxn*dxn/(dx*dx+dy*dy);
   float sinth2 = 1-costh2;
 
-  // float e2     = _ew*_ew*costh2+rs*rs*sinth2;
-  float e2     = Hit.wireErr2()*costh2+transErr2*sinth2;
+  float e2     = Hit.uVar()*costh2+Hit.vVar()*sinth2;
   float wt     = Radius*Radius/e2;
-  //    wt           *= 0.025;//_weightZPhi;
 
   return wt;
 }

@@ -14,9 +14,10 @@
 #include "fhiclcpp/types/Atom.h"
 #include "fhiclcpp/types/Sequence.h"
 
+#include "Offline/CRVConditions/inc/CRVCalib.hh"
+#include "Offline/CRVConditions/inc/CRVOrdinal.hh"
+#include "Offline/CRVConditions/inc/CRVStatus.hh"
 #include "Offline/ProditionsService/inc/ProditionsHandle.hh"
-#include "Offline/STMConditions/inc/STMEnergyCalib.hh"
-#include "Offline/TrackerConditions/inc/StrawResponse.hh"
 
 namespace mu2e {
 
@@ -42,19 +43,43 @@ class ProditionsTest : public art::EDAnalyzer {
  private:
   Config _conf;
 
-  // ProditionsHandle<StrawResponse> _testh;
-  ProditionsHandle<STMEnergyCalib> _testh;
+  ProditionsHandle<CRVOrdinal> _ordinal_h;
+  ProditionsHandle<CRVStatus> _status_h;
+  ProditionsHandle<CRVCalib> _calib_h;
 };
 
 //-----------------------------------------------------------------------------
 void ProditionsTest::analyze(const art::Event& event) {
   std::cout << "ProditionsTest::analyze  " << event.id() << std::endl;
 
-  auto const& tab = _testh.get(event.id());
-  auto channel = STMChannel(STMChannel::enum_type::LaBr);
-  auto const& r = tab.calib(channel);
-  std::cout << channel.name() << " " << r.p0 << " " << r.p1 << " " << r.p2
+  auto const& status = _status_h.get(event.id());
+  auto const& ordinal = _ordinal_h.get(event.id());
+  auto const& calib = _calib_h.get(event.id());
+
+  std::cout << "Test Ordinal\n";
+  CRVROC rr = ordinal.online(1010);
+  std::cout << " channel " << 1010 << " online: " << rr.ROC() << " " << rr.FEB()
+            << " " << rr.FEBchannel() << "\n";
+  std::cout << "online 2 2 2   offline " << ordinal.offline(CRVROC(2, 2, 2))
             << "\n";
+
+  std::cout << "Test Status\n";
+  for (auto const& ss : status.map()) {
+    std::cout << ss.first << " " << ss.second << "\n";
+  }
+
+  std::cout << "Test Calib\n";
+  std::size_t channel;
+  channel = 11;
+  std::cout << "channel " << channel << " ped: " << calib.pedestal(channel)
+            << "   height " << calib.pulseHeight(channel)
+            << "   area "   << calib.pulseArea(channel)
+            << "   timeOffset " << calib.timeOffset(channel) << "\n";
+  channel = 20111;
+  std::cout << "channel " << channel << " ped: " << calib.pedestal(channel)
+            << "   height " << calib.pulseHeight(channel)
+            << "   area " << calib.pulseArea(channel)
+            << "   timeOffset " << calib.timeOffset(channel) << "\n";
 }
 
 }  // namespace mu2e

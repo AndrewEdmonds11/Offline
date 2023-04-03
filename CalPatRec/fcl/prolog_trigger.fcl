@@ -74,11 +74,10 @@ CprTrigger : { @table::CprTrigger
         }
 
         TTDeltaFinder : { @table::CalPatRec.producers.DeltaFinder
-            comboHitCollectionTag         : TTmakePH                # input coll
-            strawHitCollectionTag         : TTmakeSH                # input coll
-            timePeakCollectionTag         : TTfastTimeClusterFinder
-            writeStrawHits                : 0
-            filter                        : 1
+            chCollTag                     : TTmakePH                # input coll
+            shCollTag                     : TTmakeSH                # input coll
+            writeStrawHitFlags           : 0
+            writeComboHits                : 1
         }
 
 #------------------------------------------------------------------------------
@@ -111,7 +110,8 @@ CprTrigger : { @table::CprTrigger
             BackgroundSelectionBits                     : ["Background"]
             minClusterEnergy                            : 50.    # MeV
             minClusterSize                              : 2      # number of crystals
-            dtOffset                                    : -61. #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            #            dtOffset                                    : -61. #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            dtOffset                                    : 0
         }
 
 
@@ -124,7 +124,8 @@ CprTrigger : { @table::CprTrigger
             BackgroundSelectionBits                     : ["Background"]
             minClusterEnergy                            : 50.    # MeV
             minClusterSize                              : 2      # number of crystals
-            dtOffset                                    : -61. #-41.8 #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            #            dtOffset                                    : -61. #-41.8 #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            dtOffset                                    : 0
         }
 
         TTCalTimePeakFinderUe          : { @table::CalPatRec.filters.CalTimePeakFinder
@@ -168,7 +169,8 @@ CprTrigger : { @table::CprTrigger
             BackgroundSelectionBits                     : ["Background"]
             minClusterEnergy                            : 50.    # MeV
             minClusterSize                              : 2      # number of crystals
-            dtOffset                                    : -41.8 #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            #            dtOffset                                    : -41.8 #FIXME! this is necessary because CaloClusterFast returns an uncalibrated time!
+            dtOffset                                    : 0.0
         }
 
         TTCalHelixFinderUCC          : { @table::CalPatRec.filters.CalHelixFinder

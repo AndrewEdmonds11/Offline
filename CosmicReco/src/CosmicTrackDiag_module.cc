@@ -1,4 +1,3 @@
-#define _USE_MATH_DEFINES
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -11,6 +10,7 @@
 #include "Offline/MCDataProducts/inc/ProtonBunchTimeMC.hh"
 #include "Offline/CosmicReco/inc/PDFFit.hh"
 #include "Offline/CosmicReco/inc/MinuitDriftFitter.hh"
+#include "Offline/DataProducts/inc/PDGCode.hh"
 
 //Mu2e Data Prods:
 //
@@ -118,6 +118,7 @@ namespace mu2e
       // track tree
       Int_t _evt;
       Int_t _run;
+      Int_t _subrun;
       Int_t _ntrack;
       Int_t _nsh; // # associated straw hits / event
       Int_t _ntc; // # clusters/event
@@ -204,6 +205,7 @@ namespace mu2e
       //Create branches:
       _trackT->Branch("evt",&_evt,"evt/I");  // add event id
       _trackT->Branch("run",&_run,"run/I");
+      _trackT->Branch("subrun",&_subrun,"subrun/I");
       _trackT->Branch("ntrack",&_ntrack,"ntrack/I");
       _trackT->Branch("outsidehits",&_outsidehits,"outsidehits/I");
       _trackT->Branch("StrawHitsInEvent", &_nsh, "StrawHitsInEvent/I");
@@ -243,6 +245,7 @@ namespace mu2e
       _hitT=tfs->make<TTree>("hitT","Hit tree");
       _hitT->Branch("evt",&_evt,"evt/I");  // add event id
       _hitT->Branch("run",&_run,"run/I");
+      _hitT->Branch("subrun",&_subrun,"subrun/I");
       _hitT->Branch("ntrack",&_ntrack,"ntrack/I");
       _hitT->Branch("outsidehits",&_outsidehits,"outsidehits/I");
       _hitT->Branch("doca",&_hitminuitdoca,"doca/F");
@@ -325,6 +328,7 @@ namespace mu2e
 
     _evt = event.id().event();  // add event id
     _run = event.id().run();
+    _subrun = event.id().subRun();
     if(!findData(event)) // find data
       throw cet::exception("RECO")<<"No Time Clusters in event"<< endl;
 
@@ -370,7 +374,7 @@ namespace mu2e
       const std::vector<StrawHitIndex>& shIndices = tclust->hits();
       for (size_t i=0; i<shIndices.size(); ++i) {
         int loc = shIndices[i];
-        const ComboHit& ch  = _chcol->at(loc);
+        const ComboHit& ch  = _phcol->at(loc);
         _tcnhits += ch.nStrawHits();
       }
 
@@ -422,8 +426,6 @@ namespace mu2e
         double trunc_wireDist = std::copysign(std::min(straw.halfLength(),fabs(sh.wireDist())),sh.wireDist());
         llike += pow(longdist - trunc_wireDist, 2) / pow(longres, 2);
 
-        if (pca.dca() < 2.55)
-          _ontrackhits += 1;
 
         double even_z = tracker.getStraw(StrawId(sh.strawId().plane(),sh.strawId().panel(),0)).getMidPoint().z();
         double odd_z = tracker.getStraw(StrawId(sh.strawId().plane(),sh.strawId().panel(),1)).getMidPoint().z();
@@ -432,14 +434,17 @@ namespace mu2e
         }
 
         double drift_time = srep.driftDistanceToTime(sh.strawId(), pca.dca(), 0);
-        drift_time += srep.driftTimeOffset(sh.strawId(), 0, 0, pca.dca());
+        drift_time += srep.driftTimeOffset(sh.strawId(), pca.dca(), 0);
 
-        double drift_res = srep.driftTimeError(sh.strawId(), 0, 0, pca.dca());
+        double drift_res = srep.driftTimeError(sh.strawId(), pca.dca(), 0);
 
         double traj_time = ((pca.point2() - minuitpos).dot(minuitdir))/299.9;
         double hit_t0 = sh.time() - sh.propTime() - traj_time - drift_time;
         double tresid = hit_t0-_t0;
         llike += pow(tresid,2)/pow(drift_res,2);
+
+        if (pca.dca() < 2.55 && fabs(tresid) < 100)
+          _ontrackhits += 1;
 
         if (fabs(tresid) > _maxtresid)
           _maxtresid = fabs(tresid);
@@ -515,14 +520,14 @@ namespace mu2e
       auto const& sgs = *sgsptr;
       auto const& sp = *sgs.simParticle();
       auto posi = GenVector::Hep3Vec(sgs.startPosition());
-      if ((sp.pdgId() == 13 || sp.pdgId() == -13) && sp.creationCode() == 56){
+      if ((sp.pdgId() == PDGCode::mu_minus || sp.pdgId() == PDGCode::mu_plus) && sp.creationCode() == 56){
         for (size_t j=i+1;j<mccol.size();j++){
           StrawDigiMC jmcdigi = mccol[j];
           auto const& jsgsptr = jmcdigi.earlyStrawGasStep();
           auto const& jsgs = *jsgsptr;
           auto const& jsp = *jsgs.simParticle();
           auto posj = GenVector::Hep3Vec(jsgs.startPosition());
-          if ((jsp.pdgId() == 13 || jsp.pdgId() == -13) && jsp.creationCode() == 56){
+          if ((jsp.pdgId() == PDGCode::mu_minus || jsp.pdgId() == PDGCode::mu_plus) && jsp.creationCode() == 56){
             pppos.push_back(posi);
             ppdir.push_back((posi-posj).unit());
           }
@@ -545,7 +550,7 @@ namespace mu2e
         auto const& sgs = *sgsptr;
         auto const& sp = *sgs.simParticle();
 
-        if ((sp.pdgId() == 13 || sp.pdgId() == -13) && sp.creationCode() == 56){
+        if ((sp.pdgId() == PDGCode::mu_minus || sp.pdgId() == PDGCode::mu_plus) && sp.creationCode() == 56){
           TwoLinePCA pca( straw.getMidPoint(), straw.getDirection(),
               GenVector::Hep3Vec(sgs.startPosition()), GenVector::Hep3Vec(sgs.endPosition()-sgs.startPosition()) );
           double true_doca = pca.dca();
@@ -604,7 +609,7 @@ namespace mu2e
         auto const& sgsptr = mcdigi.earlyStrawGasStep();
         auto const& sgs = *sgsptr;
         auto const& sp = *sgs.simParticle();
-        if ((sp.pdgId() == 13 || sp.pdgId() == -13) && sp.creationCode() == 56){
+        if ((sp.pdgId() == PDGCode::mu_minus || sp.pdgId() == PDGCode::mu_plus) && sp.creationCode() == 56){
           TwoLinePCA pca( straw.getMidPoint(), straw.getDirection(),
               GenVector::Hep3Vec(sgs.startPosition()), GenVector::Hep3Vec(sgs.endPosition()-sgs.startPosition()) );
           double true_doca = pca.dca();
@@ -733,7 +738,7 @@ namespace mu2e
           _hitmctrajtime = (GenVector::Hep3Vec(sgs.startPosition())-_mcpos).dot(_mcdir.unit())/299.9;
         }
         _hitmcdrifttime = srep.driftDistanceToTime(sh.strawId(), pca1.dca(), 0);
-        _hitmcdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), 0, 0, pca1.dca());
+        _hitmcdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), pca1.dca(), 0);
         _hitmctresid = sh.time() - (_mct0 + _hitmctrajtime + sh.propTime() + _hitmcdrifttime + _hitmcdrifttimeoffset);
 
       }
@@ -800,9 +805,9 @@ namespace mu2e
 
 
         _hitdrifttime = srep.driftDistanceToTime(sh.strawId(), pca3.dca(), 0);
-        _hitdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), 0, 0, pca3.dca());
+        _hitdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), pca3.dca(), 0);
         _hittrajtime = ((pca3.point2() - minuitpos).dot(minuitdir))/299.9;
-        _hittresidrms = srep.driftTimeError(sh.strawId(), 0, 0, pca3.dca());
+        _hittresidrms = srep.driftTimeError(sh.strawId(), pca3.dca(), 0);
 
         //double hit_t0 = sh.time() - sh.propTime() - _hittrajtime - _hitdrifttime - _hitdrifttimeoffset;
 
@@ -864,9 +869,9 @@ namespace mu2e
             _hitubdoca = ubpca.dca();
             _hitubt0 = pars[4];
             double uhitdrifttime = srep.driftDistanceToTime(sh.strawId(), ubpca.dca(), 0);
-            double uhitdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), 0, 0, ubpca.dca());
+            double uhitdrifttimeoffset = srep.driftTimeOffset(sh.strawId(), ubpca.dca(), 0);
             double uhittrajtime = ((ubpca.point2() - temppos).dot(tempdir))/299.9;
-            _hitubtresidrms = srep.driftTimeError(sh.strawId(), 0, 0, ubpca.dca());
+            _hitubtresidrms = srep.driftTimeError(sh.strawId(), ubpca.dca(), 0);
             double uhit_t0 = sh.time() - sh.propTime() - uhittrajtime - uhitdrifttime - uhitdrifttimeoffset;
             _hitubtresid = uhit_t0-_hitubt0;
           }

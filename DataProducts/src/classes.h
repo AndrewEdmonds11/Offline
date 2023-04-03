@@ -8,6 +8,9 @@
 #include "boost/array.hpp"
 #include <vector>
 
+// PDG
+#include "Offline/DataProducts/inc/PDGCode.hh"
+
 // straws
 #include "Offline/DataProducts/inc/StrawEnd.hh"
 #include "Offline/DataProducts/inc/StrawId.hh"
@@ -51,4 +54,5 @@
 #include "CLHEP/Matrix/SymMatrix.h"
 
 // STM
-#include "Offline/DataProducts/inc/STMTypes.hh"
+#include "Offline/DataProducts/inc/STMChannel.hh"
+#include "Offline/DataProducts/inc/STMTestBeamEventInfo.hh"

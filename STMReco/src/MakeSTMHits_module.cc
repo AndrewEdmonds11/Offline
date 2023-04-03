@@ -1,5 +1,5 @@
 //
-// Create STMHits from STMDigis
+// Create STMHits from STMMWDDigis
 //
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Core/EDProducer.h"
@@ -13,6 +13,7 @@
 #include "art_root_io/TFileService.h"
 #include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
 #include "Offline/GlobalConstantsService/inc/ParticleDataList.hh"
+#include "Offline/Mu2eUtilities/inc/STMUtils.hh"
 #include "Offline/ProditionsService/inc/ProditionsHandle.hh"
 #include "Offline/STMConditions/inc/STMEnergyCalib.hh"
 
@@ -21,7 +22,7 @@
 #include "TH1F.h"
 #include "TTree.h"
 
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
+#include "Offline/RecoDataProducts/inc/STMMWDDigi.hh"
 #include "Offline/RecoDataProducts/inc/STMHit.hh"
 
 // C++
@@ -36,8 +37,7 @@ namespace mu2e {
     using Name=fhicl::Name;
     using Comment=fhicl::Comment;
     struct Config {
-      fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
-      //       fhicl::Atom<art::InputTag> adcNorm{ Name("adcNorm"), Comment("Normalization for the adc values")};
+      fhicl::Atom<art::InputTag> stmMWDDigisTag{ Name("stmMWDDigisTag"), Comment("InputTag for STMMWDDigiCollection")};
     };
     using Parameters = art::EDProducer::Table<Config>;
     explicit MakeSTMHits(const Parameters& conf);
@@ -45,44 +45,38 @@ namespace mu2e {
   private:
     void produce(art::Event& e) override;
 
-    art::InputTag _stmDigisTag;
+    art::ProductToken<STMMWDDigiCollection> _stmMWDDigisToken;
+    STMChannel _channel;
     ProditionsHandle<STMEnergyCalib> _stmEnergyCalib_h;
-    //    art::InputTag _adcNorm;
   };
 
   MakeSTMHits::MakeSTMHits(const Parameters& config )  :
-    art::EDProducer{config},
-    _stmDigisTag(config().stmDigisTag()),
-    _stmEnergyCalib_h()
-    //    _adcNorm(config().adcNorm())
+    art::EDProducer{config}
+    ,_stmMWDDigisToken(consumes<STMMWDDigiCollection>(config().stmMWDDigisTag()))
+    ,_channel(STMUtils::getChannel(config().stmMWDDigisTag()))
+    ,_stmEnergyCalib_h()
     {
-      consumes<STMDigiCollection>(_stmDigisTag);
       produces<STMHitCollection>();
     }
 
     void MakeSTMHits::produce(art::Event& event) {
     // create output
     unique_ptr<STMHitCollection> outputSTMHits(new STMHitCollection);
-    auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
+    auto mwdDigisHandle = event.getValidHandle(_stmMWDDigisToken);
 
-    if (digisHandle->size() > 0) {
-      STMEnergyCalib const& stmEnergyCalib = _stmEnergyCalib_h.get(event.id()); // get calibration
+    STMEnergyCalib const& stmEnergyCalib = _stmEnergyCalib_h.get(event.id()); // get calibration
 
-      // Peek at first digi to get the channel since all digis in the same collection should be from the same detector
-      STMChannel ch = digisHandle->at(0).channel();
-      const auto& pars = stmEnergyCalib.calib(ch);
-      std::cout << ch.name() << ": p0 = " << pars.p0 << ", p1 = " << pars.p1 << ", p2 = " << pars.p2 << std::endl;
+    const auto nsPerCt = stmEnergyCalib.nsPerCt(_channel);
+    const auto& pars = stmEnergyCalib.calib(_channel);
 
-      for (const auto& digi : *digisHandle) {
-        int tdc = digi.trigTime();
-        const std::vector<short int>& adc = digi.adcs();
-        float time = tdc;
-        auto uncalib_energy = std::fabs(*std::max_element(adc.begin(), adc.end()));
-        float energy = pars.p0 + pars.p1*uncalib_energy + pars.p2*uncalib_energy*uncalib_energy;
-        //std::cout << "Calibrated energy: " << energy << ", uncalibrated: " << uncalib_energy << std::endl;
-        STMHit stm_hit(time,energy);
-        outputSTMHits->push_back(stm_hit);
-      }
+    for (const auto& mwd_digi : *mwdDigisHandle) {
+      auto uncalib_time = mwd_digi.time();
+      auto uncalib_energy = mwd_digi.energy();
+      float time = uncalib_time*nsPerCt;
+      float energy = pars.p0 + pars.p1*uncalib_energy + pars.p2*uncalib_energy*uncalib_energy;
+
+      STMHit stm_hit(time,energy);
+      outputSTMHits->push_back(stm_hit);
     }
 
     event.put(std::move(outputSTMHits));

@@ -29,10 +29,10 @@
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Services/Registry/ServiceHandle.h"
 
-#include "Offline/DataProducts/inc/STMTypes.hh"
 #include "Offline/Sources/inc/STMTestBeamHeaders.hh"
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
-
+#include "Offline/Sources/inc/STMTestBeamFileNameDecoder.hh"
+#include "Offline/DataProducts/inc/STMTestBeamEventInfo.hh"
+#include "Offline/RecoDataProducts/inc/STMWaveformDigi.hh"
 
 using namespace std;
 
@@ -54,26 +54,22 @@ namespace mu2e {
 
   //================================================================
   class STMTestBeamDataDetail : private boost::noncopyable {
-    std::string myModuleLabel_;
+    std::string myModuleType_;
     art::SourceHelper const& pm_;
-    unsigned runNumber_; // from file name
+    unsigned runNumber_ = 0; // from file name
     art::SubRunID lastSubRunID_;
     std::set<art::SubRunID> seenSRIDs_;
 
-    unsigned currentFileNumber_;
-    std::string currentFileName_;
-    std::ifstream* currentFile_ = nullptr;
+    unsigned currentFileNumber_ = 0;
+    std::string currentFileName_ = "";
+    std::unique_ptr<std::ifstream> currentFile_ = nullptr;
 
-    mu2e::STMDigiCollection digis_;
-
-    unsigned currentSubRunNumber_; // from file
-    unsigned currentEventNumber_;
-    unsigned maxEvents_;
-    int verbosityLevel_;
-    uint16_t channel_; // the channel (HPGe or LaBr) will be different for each file
-    int binaryFileVersion_;
-
-    int printAtEvent;
+    unsigned currentSubRunNumber_ = -1U; // from file
+    unsigned currentEventNumber_ = 0;
+    unsigned maxEvents_ = 0;
+    int verbosityLevel_ = 0;
+    mu2e::STMChannel channel_; // the channel (HPGe or LaBr) will be different for each file
+    int binaryFileVersion_ = 0;
 
     // A helper function used to manage the principals.
     // This is boilerplate that does not change if you change the data products.
@@ -104,24 +100,14 @@ namespace mu2e {
   STMTestBeamDataDetail::STMTestBeamDataDetail(const Parameters& conf,
       art::ProductRegistryHelper& rh,
       const art::SourceHelper& pm)
-    : myModuleLabel_("FromSTMTestBeamData")
+    : myModuleType_(conf().module_type())
     , pm_(pm)
-    , runNumber_(0)
-    , currentFileNumber_(0)
-    , currentSubRunNumber_(-1U)
-    , currentEventNumber_(0)
     , maxEvents_(conf().maxEvents())
     , verbosityLevel_(conf().verbosityLevel())
-    , binaryFileVersion_(0)
   {
-    rh.reconstitutes<mu2e::STMDigiCollection,art::InEvent>(myModuleLabel_, "HPGe");
-    rh.reconstitutes<mu2e::STMDigiCollection,art::InEvent>(myModuleLabel_, "LaBr");
-
-    currentSubRunNumber_ = 0;
-    currentEventNumber_ = 0;
-
-    printAtEvent = 0;
-
+    rh.reconstitutes<mu2e::STMWaveformDigiCollection,art::InEvent>(myModuleType_, "HPGe");
+    rh.reconstitutes<mu2e::STMWaveformDigiCollection,art::InEvent>(myModuleType_, "LaBr");
+    rh.reconstitutes<mu2e::STMTestBeamEventInfo,art::InEvent>(myModuleType_);
   }
 
 
@@ -130,78 +116,25 @@ namespace mu2e {
 
     // Open the input file
     currentFileName_ = filename;
-    currentFile_ = new std::ifstream(currentFileName_.c_str(), std::ios::in | std::ios::binary);
+    currentFile_ = std::make_unique<std::ifstream>(currentFileName_.c_str(), std::ios::in | std::ios::binary);
     if (!currentFile_->is_open()) {
       throw cet::exception("FromSTMTestBeamData") << "A problem opening binary file " << currentFileName_ << std::endl;
     }
 
-    // Extract the run number and subrun number from the file name
-    std::string delimeter = ".";
-    size_t currentPos = 0;
-    size_t previousPos = currentPos;
-    std::vector<std::string> tokens;
-    while ( (currentPos = currentFileName_.find(delimeter, previousPos)) != std::string::npos) {
-      tokens.push_back(currentFileName_.substr(previousPos, currentPos-previousPos));
-      previousPos = currentPos+1;
-    }
-    tokens.push_back(currentFileName_.substr(previousPos, currentPos-previousPos)); // add the final token which gets missed in the above loop
-    unsigned int n_expected_fields = 6;
-    if (tokens.size() != n_expected_fields) {
-      throw cet::exception("FromSTMTestBeamData") << "Number of fields in filename (" << tokens.size() << ") is not the same number we expected (" << n_expected_fields << "). Filename = " << currentFileName_ << std::endl;
-    }
-
-    // Get the channel from the configuration field
-    std::string configuration = tokens.at(3);
-    if (configuration.find("HPGe") != std::string::npos) {
-      channel_ = STMChannel::HPGe;
-    }
-    else if (configuration.find("LaBr") != std::string::npos) {
-      channel_ = STMChannel::LaBr;
-    }
-    else {
-      throw cet::exception("FromSTMTestBeamData") << "Cannot determine the channel from the configuration field (" << configuration << "). This should contain either \"HPGe\" or \"LaBr\"" << std::endl;
-    }
-
-    // Get the run and subrun numbers from the sequencer
-    std::string sequencer = tokens.at(4);
-    std::string runNo = sequencer.substr(0, 6); // sequencer always has 6 characters for run
-    runNumber_ = std::stoi(runNo);
-
-    if(!art::RunID(runNumber_).isValid()) {
-      throw cet::exception("BADCONFIG", " FromSTMTestBeamData: ")
-        << " fhicl::ParameterSet specifies an invalid runNumber = "<<runNumber_<<"\n";
-    }
-
-    if(runNumber_ < 101000 || runNumber_ > 101999) {
-      throw cet::exception("FromSTMTestBeamData") << "Run number is outside of our reserved run range (101000 -- 101999)" << std::endl;
-    }
-
-    // There are two different versions of the binary file:
-    //  - v2 contains a unix timestamp after the trigger header
-    //  - v1 does not
-    // For the time being, just hardcode which runs belong to which (ideally would be in a DB)
-    if (runNumber_ == 101001) {
-      binaryFileVersion_ = 2;
-    }
-    else if (runNumber_ >= 101002 && runNumber_<=101014) {
-      binaryFileVersion_ = 1;
-    }
-    else {
-      binaryFileVersion_ = 2;
-    }
-
-    std::string subrunNo = sequencer.substr(7, 7+8); // sequencer always has 6 characters for run followed by an underscore and then 8 characters for the sub run
-    currentSubRunNumber_ = std::stoi(subrunNo);
+    mu2e::STMTestBeam::FileNameDecoder decoder(currentFileName_);
+    channel_ = decoder.extractSTMChannel();
+    runNumber_ = decoder.extractRunNumber();
+    binaryFileVersion_ = decoder.extractBinaryFileVersion(runNumber_);
+    currentSubRunNumber_ = decoder.extractSubRunNumber();
     currentEventNumber_ = 1;
-    fb = new art::FileBlock(art::FileFormatVersion(1, "STMTestBeamDataInput"), currentFileName_);
+
+    fb = new art::FileBlock(art::FileFormatVersion(1, "STMTestBeamDataInput"), currentFileName_); // art takes ownership
   }
 
   //----------------------------------------------------------------
   void STMTestBeamDataDetail::closeCurrentFile() {
     currentFileName_ = "";
-    currentFile_->close();
-    delete currentFile_;
-    currentFile_ = nullptr;
+    currentFile_.reset();
   }
 
   //----------------------------------------------------------------
@@ -215,30 +148,29 @@ namespace mu2e {
       return false;
     }
 
-    // Create the STMDigiCollection that we will write to the art event
-    std::unique_ptr<mu2e::STMDigiCollection> outputHPGeDigis(new mu2e::STMDigiCollection);
-    std::unique_ptr<mu2e::STMDigiCollection> outputLaBrDigis(new mu2e::STMDigiCollection);
+    // Create the STMWaveformDigiCollection that we will write to the art event
+    // NB although we are creating one collection for each detector, in the test beam only one
+    //    detector was connected at a time so one of these collections will be empty
+    std::unique_ptr<mu2e::STMWaveformDigiCollection> outputHPGeWaveformDigis(new mu2e::STMWaveformDigiCollection());
+    std::unique_ptr<mu2e::STMWaveformDigiCollection> outputLaBrWaveformDigis(new mu2e::STMWaveformDigiCollection());
 
     // Read the trigger header
-    STMTestBeam::TriggerHeader trigger_header[1];
-    if(currentFile_->read((char *) &trigger_header[0], sizeof(STMTestBeam::TriggerHeader))) {
+    STMTestBeam::TriggerHeader trigger_header;
+    if(currentFile_->read(reinterpret_cast<char *>(&trigger_header), sizeof(STMTestBeam::TriggerHeader))) {
       managePrincipals(runNumber_, currentSubRunNumber_, currentEventNumber_, outR, outSR, outE);
 
-      /*      if (currentEventNumber_ != trigger_header[0].getTriggerNumber()) {
-        throw cet::exception("FromSTMTestBeamData")  << "Current event number (" << currentEventNumber_ << ") is not the same as the trigger number in the header (" << trigger_header[0].getTriggerNumber() << ")" << std::endl;
-        }*/
       if(verbosityLevel_ > 0) {
-        std::cout << trigger_header[0] << std::endl;
+        std::cout << trigger_header << std::endl;
       }
-      if (!trigger_header[0].checkFixedHeader()) {
-        throw cet::exception("FromSTMTestBeamData") << "Fixed header word (0x" << std::setfill('0') << std::setw(8) << std::hex << (trigger_header[0].getFixedHeader()) << ") != 0xDEADBEEF" << std::endl;
+      if (!trigger_header.checkFixedHeader()) {
+        throw cet::exception("FromSTMTestBeamData") << "Fixed header word (0x" << std::setfill('0') << std::setw(8) << std::hex << (trigger_header.getFixedHeader()) << ") != 0xDEADBEEF" << std::endl;
       }
 
       // binary file version 2 now contains the unix time stamp
       if (binaryFileVersion_ == 2) {
         uint16_t unixtime[4];
-        currentFile_->read((char *) &unixtime[0], sizeof(unixtime));
-        uint64_t time = ((uint64_t) unixtime[3] << 48) | ((uint64_t) unixtime[2] << 32) | ((uint64_t) unixtime[1] << 16) | ((uint64_t) unixtime[0]);
+        currentFile_->read(reinterpret_cast<char *>(&unixtime[0]), sizeof(unixtime));
+        uint64_t time = (uint64_t(unixtime[3]) << 48) | (uint64_t(unixtime[2]) << 32) | (uint64_t(unixtime[1]) << 16) | (uint64_t(unixtime[0]));
         if (verbosityLevel_ > 0) {
           using time_point = std::chrono::system_clock::time_point;
           time_point header_timepoint(std::chrono::duration_cast<time_point::duration>(std::chrono::milliseconds(time)));
@@ -247,12 +179,16 @@ namespace mu2e {
         }
       }
 
+      // Get event information for this trigger and put in the event
+      std::unique_ptr<mu2e::STMTestBeamEventInfo> outputEvtInfo(new mu2e::STMTestBeamEventInfo(trigger_header.getTriggerMode(), trigger_header.getTriggerTime()));
+      art::put_product_in_principal(std::move(outputEvtInfo), *outE, myModuleType_);
+
       // Get the number of slices in this trigger
-      int n_slices = trigger_header[0].getNSlices();
+      int n_slices = trigger_header.getNSlices();
       for (int i_slice = 0; i_slice < n_slices; ++i_slice) {
         STMTestBeam::SliceHeader slice_header[1];
         // Read the slice header
-        if(currentFile_->read((char *) &slice_header[0], sizeof(STMTestBeam::SliceHeader))) {
+        if(currentFile_->read(reinterpret_cast<char *>(&slice_header[0]), sizeof(STMTestBeam::SliceHeader))) {
           if(verbosityLevel_ > 0) {
             std::cout << slice_header[0] << std::endl;
           }
@@ -262,23 +198,23 @@ namespace mu2e {
 
           // Read the ADC samples into a vector for later
           std::vector<int16_t> adcs;
+          adcs.reserve(n_adc_samples);
           int16_t adc[1];
           for (unsigned long int i_adc_sample = 0; i_adc_sample < n_adc_samples; ++i_adc_sample) {
-            currentFile_->read((char *) &adc[0], sizeof(int16_t));
+            currentFile_->read(reinterpret_cast<char *>(&adc[0]), sizeof(int16_t));
             adcs.push_back(adc[0]);
           }
 
-          // Create the STMDigi and put it in the event
-          STMTrigType trigType(trigger_header[0].getTriggerMode(), channel_, STMDataType::kUnsuppressed);
-          STMDigi stm_digi(trigType, trigger_header[0].getTriggerTime(), trigger_header[0].getTriggerOffset(), 0, STMDigiFlag::kOK, adcs);
+          // Create the STMWaveformDigi and put it in the event
+          STMWaveformDigi stm_waveform(trigger_header.getTriggerOffset(), adcs);
           if (channel_ == STMChannel::HPGe) {
-            outputHPGeDigis->push_back(stm_digi);
+            outputHPGeWaveformDigis->push_back(stm_waveform);
           }
           else if (channel_ == STMChannel::LaBr) {
-            outputLaBrDigis->push_back(stm_digi);
+            outputLaBrWaveformDigis->push_back(stm_waveform);
           }
           else {
-            throw cet::exception("FromSTMTestBeamData") << "Trying to create a digi with an invalid STMChannel (" << channel_ << ")" << std::endl;
+            throw cet::exception("FromSTMTestBeamData") << "Trying to create a waveform with an invalid STMChannel (" << channel_ << ")" << std::endl;
           }
         }
         else { return false; }
@@ -286,8 +222,8 @@ namespace mu2e {
     }
     else { return false; }
 
-    art::put_product_in_principal(std::move(outputHPGeDigis), *outE, myModuleLabel_, "HPGe");
-    art::put_product_in_principal(std::move(outputLaBrDigis), *outE, myModuleLabel_, "LaBr");
+    art::put_product_in_principal(std::move(outputHPGeWaveformDigis), *outE, myModuleType_, "HPGe");
+    art::put_product_in_principal(std::move(outputLaBrWaveformDigis), *outE, myModuleType_, "LaBr");
 
     ++currentEventNumber_;
 

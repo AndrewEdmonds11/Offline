@@ -324,7 +324,7 @@ namespace mu2e {
       PanelZ_t*      panelz(0);
       FaceZ_t*       facez(0);
 
-      for (int f=0; f<StrawId::_ntotalfaces; ++f){
+      for (int f=StrawId::_ntotalfaces-1; f>=0; --f){
         facez     = &Helix._oTracker[f];
         for (int p=0; p<FaceZ_t::kNPanels; ++p){
           panelz = &facez->panelZs[p];
@@ -771,7 +771,7 @@ namespace mu2e {
     PanelZ_t* panelz(0);
     FaceZ_t*  facez(0);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=SeedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
 
       int  firstPanel(0);
@@ -994,7 +994,7 @@ namespace mu2e {
     mu2e::ComboHit* hit(0);
     int             index(0);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces;  ++f){
+    for (int f=SeedIndex.face; f>=0;  --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -1112,7 +1112,7 @@ namespace mu2e {
     float         z, phi, weight(PhiZInfo.weight), chi2;
     ::LsqSums4     szphi;
 
-    for (int f=PhiZInfo.seedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=PhiZInfo.seedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
       z         = Helix._zFace[f];
       int            firstPanel(0);
@@ -1166,7 +1166,7 @@ namespace mu2e {
     FaceZ_t*       facez(0);
     float         z, phi, weight(PhiZInfo.weight), xdphi, dphi, err;
 
-    for (int f=PhiZInfo.seedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=PhiZInfo.seedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
       z         = Helix._zFace[f];
       int            firstPanel(0);
@@ -1317,7 +1317,7 @@ namespace mu2e {
 
     count = 0;
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=SeedIndex.face; f>=0; --f){
       // reset the chi2 values calulated in the previous panel
       HitInfo_t      goodFaceHit;
       float          faceHitChi2(1e10);
@@ -1345,7 +1345,7 @@ namespace mu2e {
            ( (fabs(phiZInfo.dfdz - Helix._szphi.dfdz()) < 8.e-4) ) &&//  || //require that the new value of dfdz is
                                  //close to the starting one. update dfdz only if:
            ((Helix._szphi.dfdz()*_dfdzsign) > 0.) && //{                    // 1. the points browsed are more the half
-           (phiZInfo.dz >=_mindist ) ){
+           (-1.*phiZInfo.dz >=_mindist ) ){
         phiZInfo.dfdz  = Helix._szphi.dfdz();                     //    delta hits could have moved dfdz to negative value!
         phiZInfo.phi0  = Helix._szphi.phi0();                     // 2. and require dfdz to be positivie! scattered hits or
         phiZInfo.zlast = z;
@@ -1462,7 +1462,7 @@ namespace mu2e {
       if (success) {
         int h=0;
 
-        for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+        for (int f=SeedIndex.face; f>=0; --f){
           facez     = &Helix._oTracker[f];
           int  firstPanel(0);
           if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -1720,7 +1720,7 @@ namespace mu2e {
 
     int   firstFace = Helix._seedIndex.face;
     if (firstFace<0) firstFace = 0;
-    for (int f=firstFace; f>=0;  --f){
+    for (int f=firstFace; f<StrawId::_ntotalfaces;  ++f){
       facez     = &Helix._oTracker[f];
       float          faceHitChi2(1e10);
       HitInfo_t      goodFaceHit;
@@ -1757,7 +1757,7 @@ namespace mu2e {
           if (Helix._hitsUsed[index] >= 1)                    continue;
           hit       = &Helix._chHitsToProcess[index];
           shPos     = hit->_pos;
-          strawDir  = hit->_sdir;
+          strawDir  = hit->vDir();
 
           dx        = hePos.x() - shPos.x();
           dy        = hePos.y() - shPos.y();
@@ -1770,7 +1770,7 @@ namespace mu2e {
                    x0,y0,radius,dfdz,dist,distXY,deltaZ,weight);
           }
 
-          max_dist = _distPatRec + _dfdzErr*fabs(deltaZ);
+          max_dist = _distPatRec + _dfdzErr*std::fabs(deltaZ);
           if (dist <= max_dist) {
             if (dist < faceHitChi2){
               goodFaceHit.face          = f;
@@ -1870,7 +1870,7 @@ namespace mu2e {
       PanelZ_t*       panelz(0);
       mu2e::ComboHit* hit(0);
 
-      for (int f=0; f<StrawId::_ntotalfaces; ++f){
+      for (int f=StrawId::_ntotalfaces-1; f>=0; --f){
         facez     = &Helix._oTracker[f];
         for (int p=0; p<FaceZ_t::kNPanels; ++p){
           panelz =  &facez->panelZs[p];//&Helix._oTracker[p];
@@ -1912,7 +1912,7 @@ namespace mu2e {
 
     mu2e::ComboHit* hit(0); bool isFirst(true);
 
-    for (int f=0; f<StrawId::_ntotalfaces; ++f){
+    for (int f=StrawId::_ntotalfaces-1; f>=0; --f){
       facez     = &Helix._oTracker[f];
       for (int p=0; p<FaceZ_t::kNPanels; ++p){
         panelz = &facez->panelZs[p];// &Helix._oTracker[p];
@@ -2009,15 +2009,15 @@ namespace mu2e {
     FaceZ_t*  facez(0);
     PanelZ_t* panelz(0);
 
-    for (int f=0; f<StrawId::_ntotalfaces; ++f){
-      if (Helix._zFace[f] > _maxZTripletSearch)     break;
+    for (int f=StrawId::_ntotalfaces-1; f>=0; --f){
+      ///if (Helix._zFace[f] < _maxZTripletSearch)     break;
       facez     = &Helix._oTracker[f];
       for (int p=0; p<FaceZ_t::kNPanels; ++p){
         panelz = &facez->panelZs[p];
         int       nhits  = panelz->nChHits();
         for (int i=0; i<nhits; ++i){
           if (Helix._nStrawHits > (nSh - nHitsTested))   continue;
-          if ((nSh - nHitsTested) < _minNHits        )   continue;
+          if ((nSh - nHitsTested) < _minNHits        )  continue;
           //clear the info of the tmp object used to test the triplet
           TmpHelix.clearResults();
 
@@ -2092,7 +2092,7 @@ namespace mu2e {
       printInfo(Helix);
     }
 
-    rc = doLinearFitPhiZ(Helix, HitInfo_t(0,0,-1), useIntelligentWeight);
+    rc = doLinearFitPhiZ(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), useIntelligentWeight);
 
     //2017-10-05 Gianipez added the following line to make some tests
     if (Helix._szphi.qn() == 0.)                                 goto  PATTERN_RECOGNITION_END;
@@ -2110,7 +2110,7 @@ namespace mu2e {
 //--------------------------------------------------------------------------------
     strcpy(banner,"refineHelixParameters");
 
-    refineHelixParameters(Helix, HitInfo_t(0,0,-1), banner, _debug);
+    refineHelixParameters(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), banner, _debug);
 
     if (_debug != 0)  printInfo(Helix);
 //---------------------------------------------------------------------------------------
@@ -2119,9 +2119,9 @@ namespace mu2e {
     if ((Helix._nZPhiSh < _minNHits) || (!rc)) usePhiResid = 0;
     else                                       usePhiResid = 1;
 
-    rescueHits(Helix, HitInfo_t(0,0,-1), usePhiResid);
+    rescueHits(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), usePhiResid);
 
-    if ((Helix._nXYSh - 1) != Helix._nZPhiSh) rc = doLinearFitPhiZ(Helix, HitInfo_t(0,0,-1), useIntelligentWeight);//the factor "-1" takes into account that the XY fit includes the target center
+    if ((Helix._nXYSh - 1) != Helix._nZPhiSh) rc = doLinearFitPhiZ(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), useIntelligentWeight);//the factor "-1" takes into account that the XY fit includes the target center
 
     if (_debug != 0)  printInfo(Helix);
 //--------------------------------------------------------------------------------------------------------------
@@ -2131,7 +2131,7 @@ namespace mu2e {
 // re-evaluate the df/dz and phi0 including rescued hits and new XY parameters
 //--------------------------------------------------------------------------------------------------------------
     if (Helix._nZPhiSh < _minNHits || (!rc)){
-      rs = findDfDz(Helix, HitInfo_t(0,0,-1));
+      rs = findDfDz(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1));
 
       if (rs == 1) {                        // update Helix Z-phi part
         Helix._dfdz = _hdfdz;
@@ -2139,16 +2139,16 @@ namespace mu2e {
       }
     }
 
-    rc = doLinearFitPhiZ(Helix, HitInfo_t(0,0,-1), useIntelligentWeight);
+    rc = doLinearFitPhiZ(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), useIntelligentWeight);
 
     if (rc) {
       usePhiResid = 1;
-      rescueHits(Helix, HitInfo_t(0,0,-1), usePhiResid);
-      if ((Helix._nXYSh - 1) != Helix._nZPhiSh) rc = doLinearFitPhiZ(Helix, HitInfo_t(0,0,-1), useIntelligentWeight);  //the factor "-1" takes into account that the XY fit includes the target center
+      rescueHits(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), usePhiResid);
+      if ((Helix._nXYSh - 1) != Helix._nZPhiSh) rc = doLinearFitPhiZ(Helix, HitInfo_t(StrawId::_ntotalfaces-1,0,-1), useIntelligentWeight);  //the factor "-1" takes into account that the XY fit includes the target center
 
       if (_debug != 0)  printInfo(Helix);
       strcpy(banner,"refineHelixParameters-after-doLinearFitPhiZ");
-      refineHelixParameters(Helix,HitInfo_t(0,0,-1),banner,_debug);
+      refineHelixParameters(Helix,HitInfo_t(StrawId::_ntotalfaces-1,0,-1),banner,_debug);
       if (_debug != 0)  printInfo(Helix);
     }
 //-----------------------------------------------------------------------------
@@ -2189,18 +2189,18 @@ namespace mu2e {
     float    transErr = 5./sqrt(12.);
     //scale the error based on the number of the strawHits that are within the mu2e::ComboHit
     if (Hit.nStrawHits() > 1) transErr *= 1.5;
-    float    transErr2 = transErr*transErr;
+    float    transVar = transErr*transErr;
 
     float x   = Hit.pos().x();
     float y   = Hit.pos().y();
     float dx  = x-HelCenter.x();
     float dy  = y-HelCenter.y();
-    float dxn = dx*Hit._sdir.x()+dy*Hit._sdir.y();
+    float dxn = dx*Hit.vDir().x()+dy*Hit.vDir().y();
 
     float costh2 = dxn*dxn/(dx*dx+dy*dy);
     float sinth2 = 1-costh2;
 
-    float e2     = Hit.wireErr2()*sinth2+transErr2*costh2;
+    float e2     = Hit.wireVar()*sinth2+transVar*costh2;
     float wt     = 1./e2;
                                                     // scale the weight for having chi2/ndof distribution peaking at 1
     wt *= _weightXY;
@@ -2219,7 +2219,7 @@ namespace mu2e {
     //    float    transErr = 5./sqrt(12.);
     //scale the error based on the number of the strawHits that are within the mu2e::ComboHit
     //    if (Hit.nStrawHits() > 1) transErr *= 1.5;
-    //    float    transErr2 = transErr*transErr;
+    //    float    transVar = transErr*transErr;
 
     float x  = Hit.pos().x();
     float y  = Hit.pos().y();
@@ -2229,12 +2229,12 @@ namespace mu2e {
 //-----------------------------------------------------------------------------
 // if dr(dx,dy) is orthogonal to the wire, costh = 1
 //-----------------------------------------------------------------------------
-    float dxn    = dx*Hit._sdir.x()+dy*Hit._sdir.y();
+    float dxn    = dx*Hit.vDir().x()+dy*Hit.vDir().y();
     float costh2 = dxn*dxn/(dx*dx+dy*dy);
     float sinth2 = 1-costh2;
 
-    //    float e2     = Hit.wireErr2()*costh2+transErr2*sinth2;
-    float e2     = Hit.wireErr2()*costh2+Hit.transErr2()*sinth2;
+    //    float e2     = Hit.wireVar()*costh2+transVar*sinth2;
+    float e2     = Hit.wireVar()*costh2+Hit.transVar()*sinth2;
     float wt     = Radius*Radius/e2;
     wt           *= _weightZPhi;
 
@@ -2301,7 +2301,7 @@ namespace mu2e {
 
     mu2e::ComboHit* hit   (0);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=SeedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -2328,7 +2328,7 @@ namespace mu2e {
 
           if (_debug > 10) {
             printf("[CalHelixFinderAlg::doWeightedCircleFit:LOOP] %4i %10.3f %10.3f %10.3f %10.3e %10.4f %10.4f\n",
-                   (int)hit->index(), hit->_pos.x(), hit->_pos.y(), hit->_pos.z(), wt, hit->_sdir.x(), hit->_sdir.y());
+                   (int)hit->index(), hit->_pos.x(), hit->_pos.y(), hit->_pos.z(), wt, hit->vDir().x(), hit->vDir().y());
           }
         }
       }//end panels loop
@@ -2374,7 +2374,7 @@ namespace mu2e {
     //    FaceZ_t*       seedFacez = &Helix._oTracker[Helix._seedIndex.face];
 
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces;  ++f){
+    for (int f=SeedIndex.face; f>=0;  --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -2431,7 +2431,7 @@ namespace mu2e {
     PanelZ_t*       panelz(0);
     FaceZ_t*        facez(0);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=SeedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -2512,7 +2512,7 @@ namespace mu2e {
 //-----------------------------------------------------------------------------
 // recalcute weights using most recent helix parameters
 //-----------------------------------------------------------------------------
-    doWeightedCircleFit (Trk,SeedIndex,helCenter,r,Print,Banner);
+    // doWeightedCircleFit (Trk,SeedIndex,helCenter,r,Print,Banner);
 
     //now initialize the LsqSum4 variable
     // sxyw.init(Trk._sxy);
@@ -2739,7 +2739,7 @@ namespace mu2e {
     wtBest      = -1;
     phiwtBest   = -1;
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces; ++f){
+    for (int f=SeedIndex.face; f>=0; --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -2758,7 +2758,7 @@ namespace mu2e {
           if (Helix._hitsUsed[index] >= 1)                    continue;
 
           hitPos    = hit->_pos;
-          strawDir  = hit->_sdir;
+          strawDir  = hit->vDir();
 
           dr = calculateRadialDist(hitPos,helCenter,r);
           wt = calculateWeight    (*hit,helCenter,r);
@@ -3069,7 +3069,7 @@ namespace mu2e {
 
     mu2e::ComboHit* hit(0);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces;  ++f){
+    for (int f=SeedIndex.face; f>=0;  --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -3079,6 +3079,7 @@ namespace mu2e {
       //-----------------------------------------------------------------------------
       deltaZ = Helix._zFace[f] - lastFacez;
       phi    = phi0 + deltaZ*dfdz;
+      // phi    = phi0 - deltaZ*dfdz;
       //evaluate the helix prediction using the z coordinate of the panel
       hePos.SetXYZ(center.x()+radius*cos(phi),center.y()+radius*sin(phi),Helix._zFace[f]);//facez->z);
 
@@ -3144,7 +3145,8 @@ namespace mu2e {
           //-----------------------------------------------------------------------------
           // dxy_max: running search window accounts for the finite extrapolation accuracy
           //-----------------------------------------------------------------------------
-          float dxy_max = _distPatRec + _dfdzErr*deltaZ;
+          //          float dxy_max = _distPatRec + _dfdzErr*deltaZ;
+          float dxy_max = _distPatRec + _dfdzErr*std::fabs(deltaZ);
           if (dist <= dxy_max) {
             if (dist < faceHitChi2){
               faceHitChi2               = dist;
@@ -3189,7 +3191,7 @@ namespace mu2e {
       if      ( Mode == 0 ) ++mode0GoodPoints;
       //      else if ((Mode == 1) && (panelHitIndex[t]<= lastIndex.PanelHitIndex)) ++mode1GoodPoints;//FIXME!
 
-      float dzFromSeed = z_phi0 - seedFacez;//Helix._zFace[goodFaceHit.face] - seedFacez;
+      float dzFromSeed = -1.*(z_phi0 - seedFacez);
       // hit->_dzFromSeed = dzFromSeed;
       // hit->_drFromPred = faceHitChi2;//panelHitChi2[t];
 
@@ -3297,13 +3299,13 @@ namespace mu2e {
     Helix._fz0        = phi0 - dfdz*z_phi0; // *FLOAT_CHECK*
 
     radius_end = Helix._radius;
-
+    //breakpoint -- radius before refine $
     int rc = refineHelixParameters(Helix, SeedIndex);
 //-----------------------------------------------------------------------------
 // if weighted XY fit didn't converge, there is nothing else one can do, return
 //-----------------------------------------------------------------------------
     if (rc < 0) return;
-
+    //breakpoint -- radius after refine $
     // Helix._center.SetXYZ(Helix._cw.x(), Helix._cw.y(), 0.0);
     // Helix._radius  = Helix._rw;
     radius_end     = Helix._radius;
@@ -3447,8 +3449,7 @@ namespace mu2e {
       Helix._diag.dphi0res_23 = dphi0Res[1];
       Helix._diag.dphi0res_24 = dphi0Res[2];
 
-      //      int j=0;
-      for (int f=SeedIndex.face; f<StrawId::_ntotalfaces;  ++f){
+      for (int f=SeedIndex.face; f>=0;  --f){
         facez     = &Helix._oTracker[f];
         int  firstPanel(0);
         if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -3651,7 +3652,7 @@ namespace mu2e {
 
     bool           isFirst(true);
 
-    for (int f=SeedIndex.face; f<StrawId::_ntotalfaces;  ++f){
+    for (int f=SeedIndex.face; f>=0;  --f){
       facez     = &Helix._oTracker[f];
       int  firstPanel(0);
       if (f == SeedIndex.face) firstPanel = SeedIndex.panel;
@@ -3993,7 +3994,7 @@ void CalHelixFinderAlg::plotXY(int ISet) {
     FaceZ_t*  facez(0);
     PanelZ_t* panelz(0);
 
-    for (int f=0; f<StrawId::_ntotalfaces;  ++f){
+    for (int f=StrawId::_ntotalfaces-1; f>=0;  --f){
       facez     = &Helix._oTracker[f];
       for (int p=0; p<FaceZ_t::kNPanels; ++p){
         panelz = &facez->panelZs[p];//Helix._oTracker[p];

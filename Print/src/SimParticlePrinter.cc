@@ -1,5 +1,6 @@
 
 #include "Offline/Print/inc/SimParticlePrinter.hh"
+#include "Offline/DataProducts/inc/PDGCode.hh"
 #include "art/Framework/Principal/Provenance.h"
 #include <iomanip>
 #include <string>
@@ -61,7 +62,7 @@ void mu2e::SimParticlePrinter::Print(const mu2e::SimParticle& obj, int ind,
   if (verbose() < 1) return;
 
   if (obj.startMomentum().vect().mag() < _pCut) return;
-  if ((abs(obj.pdgId()) == 11 || obj.pdgId() == 22) &&
+  if ((abs(obj.pdgId()) == PDGCode::e_minus || obj.pdgId() == PDGCode::gamma) &&
       obj.startMomentum().vect().mag() < _emPCut)
     return;
   if (_primaryOnly && (!obj.isPrimary())) return;
@@ -78,21 +79,26 @@ void mu2e::SimParticlePrinter::Print(const mu2e::SimParticle& obj, int ind,
   if (ind >= 0) os << std::setw(4) << ind;
 
   if (verbose() == 1) {
-    os << " " << std::setw(7) << key << " " << std::setw(7) << pkey << " "
-       << std::setw(8) << obj.pdgId() << " " << std::setw(8)
-       << std::setprecision(1) << obj.startPosition().x() << " " << std::setw(8)
-       << std::setprecision(1) << obj.startPosition().y() << " " << std::setw(8)
-       << std::setprecision(1) << obj.startPosition().z() << " " << std::setw(9)
-       << std::setprecision(1) << obj.startMomentum().vect().mag() << "   "
-       << " " << std::setw(8) << std::setprecision(1) << obj.endPosition().x()
-       << " " << std::setw(8) << std::setprecision(1) << obj.endPosition().y()
-       << " " << std::setw(8) << std::setprecision(1) << obj.endPosition().z()
-       << " " << std::setw(9) << std::setprecision(1)
-       << obj.endMomentum().vect().mag() << " " << std::setw(6)
-       << obj.endVolumeIndex() << "  "
+    os << " " << std::setw(7)  << key
+       << " " << std::setw(7)  << pkey
+       << " " << std::setw(11) << obj.pdgId()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.startPosition().x()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.startPosition().y()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.startPosition().z()
+       << " " << std::setw(9)  << std::setprecision(1) << obj.startMomentum().vect().mag()
+       << " " << std::setw(9)  << std::setprecision(1) << obj.startMomentum().vect().perp()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.startGlobalTime()
+       << "   "
+       << " " << std::setw(8)  << std::setprecision(1) << obj.endPosition().x()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.endPosition().y()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.endPosition().z()
+       << " " << std::setw(9)  << std::setprecision(1) << obj.endMomentum().vect().mag()
+       << " " << std::setw(9)  << std::setprecision(1) << obj.endMomentum().vect().perp()
+       << " " << std::setw(8)  << std::setprecision(1) << obj.endGlobalTime()
+       << " " << std::setw(6)  << obj.endVolumeIndex()
+       << "  "
        << " " << std::setiosflags(std::ios::left) << obj.stoppingCode().name()
        << std::endl;
-
   } else if (verbose() == 2) {
     os << "  id: " << std::setw(8) << key << " pdgId: " << std::setw(4)
        << obj.pdgId() << " parentKey: " << std::setw(8) << pkey
@@ -146,7 +152,6 @@ void mu2e::SimParticlePrinter::PrintHeader(const std::string& tag,
 }
 
 void mu2e::SimParticlePrinter::PrintListHeader(std::ostream& os) {
-  if (verbose() < 1) return;
-  os << "ind      key    parent  pdgId       Start  Position            P      "
-        "      End Position               P     vol   process\n";
+  if(verbose()<1) return;
+  os << "ind      key    parent    pdgId        Start  Position            P           pT    Time         End Position               P           pT    Time   vol   process\n";
 }

@@ -32,23 +32,22 @@
 namespace mu2e {
 
   class TrkRecoMcUtils : public mu2e::McUtilsToolBase {
-    protected:
-      std::string                   _comboHitCollTag;
-      const ComboHitCollection*     _chColl;
-      std::string                   _strawDigiMCCollTag;
-      const StrawDigiMCCollection*  _mcdigis;
-      unsigned int                  _lastEvent;
-      //    SimParticleTimeOffset*       _timeOffsets;
-      double                        _mbtime;
+  protected:
+    art::InputTag                 _comboHitCollTag;
+    const ComboHitCollection*     _chColl;
+    art::InputTag                 _strawDigiMCCollTag;
+    const StrawDigiMCCollection*  _mcdigis;
+    art::EventID                  _lastEvent;
+    double                        _mbtime;
 
-    public:
+  public:
 
-      TrkRecoMcUtils(const fhicl::ParameterSet& PSet);
-      ~TrkRecoMcUtils();
+    TrkRecoMcUtils(const fhicl::Table<McUtilsToolBase::Config>& config);
+    ~TrkRecoMcUtils();
 
-    public:
+  public:
 
-      int     initEvent(const art::Event* Event);
+      int            initEvent(const art::Event* Event);
 
       virtual int    strawHitSimId(const art::Event* Event, int Index) override;
 
@@ -64,28 +63,30 @@ namespace mu2e {
       //                    const art::InputTag& Tag) override;
 
       virtual const SimParticle* getSimParticle(const art::Event* Event, int HitIndex) override;
+      virtual const XYZVectorF*  getMom        (const art::Event* Event, int HitIndex) override;
+      virtual const XYZVectorF*  getPos        (const art::Event* Event, int HitIndex) override;
 
-      int   getID      (const SimParticle* Sim) override;
-      int   getPdgID   (const SimParticle* Sim) override;
-      float getStartMom(const SimParticle* Sim) override;
+      int   getID         (const SimParticle* Sim) override;
+      int   getMotherID   (const SimParticle* Sim) override;
+      int   getMotherPdgID(const SimParticle* Sim) override;
+      int   getPdgID      (const SimParticle* Sim) override;
+      float getStartMom   (const SimParticle* Sim) override;
 
   };
 
-  //-----------------------------------------------------------------------------
-  TrkRecoMcUtils::TrkRecoMcUtils(const fhicl::ParameterSet& PSet) :
-    _comboHitCollTag   { PSet.get<std::string>("comboHitCollTag"   ) },
-    _strawDigiMCCollTag{ PSet.get<std::string>("strawDigiMCCollTag") }
+//-----------------------------------------------------------------------------
+  TrkRecoMcUtils::TrkRecoMcUtils(const fhicl::Table<McUtilsToolBase::Config>& config) :
+    _comboHitCollTag   { config().comboHitCollTag()    },
+    _strawDigiMCCollTag{ config().strawDigiMCCollTag() }
   {
-    _lastEvent   = -1;
+    _lastEvent   = art::EventID();
     _mcdigis     = nullptr;
     _chColl      = nullptr;
     _mbtime      = -1;
-    //    _timeOffsets = new SimParticleTimeOffset(*TimeOffsets);
   }
 
   //-----------------------------------------------------------------------------
   TrkRecoMcUtils::~TrkRecoMcUtils() {
-    //    delete _timeOffsets;
   }
 
   //-----------------------------------------------------------------------------
@@ -98,12 +99,11 @@ namespace mu2e {
     auto chcH = Event->getValidHandle<ComboHitCollection>(_comboHitCollTag);
     _chColl   = chcH.product();
 
-    //    _timeOffsets->updateMap(*Event);
     if (_mbtime < 0) {
       ConditionsHandle<AcceleratorParams> accPar("ignored");
       _mbtime      = accPar->deBuncherPeriod;
     }
-    _lastEvent = Event->event();
+    _lastEvent = Event->id();
 
     return 0;
   }
@@ -112,7 +112,7 @@ namespace mu2e {
   // returns ID of the SimParticle corresponding to straw hit 'Index'
   //-----------------------------------------------------------------------------
   int TrkRecoMcUtils::strawHitSimId(const art::Event* Event, int HitIndex) {
-    if (Event->event() != _lastEvent) initEvent(Event);
+    if (Event->id() != _lastEvent) initEvent(Event);
     return (*_mcdigis)[HitIndex].earlyStrawGasStep()->simParticle()->id().asInt();
   }
   //-----------------------------------------------------------------------------
@@ -123,7 +123,7 @@ namespace mu2e {
 
     double mcdoca(-99.0);
 
-    if (Event->event() != _lastEvent) initEvent(Event);
+    if (Event->id() != _lastEvent) initEvent(Event);
 
     const ComboHit* ch    = &StrawHit->comboHit();
     const Straw*    straw = &StrawHit->straw();
@@ -163,7 +163,7 @@ namespace mu2e {
   // //-----------------------------------------------------------------------------
   // // update if new event
   // //-----------------------------------------------------------------------------
-  //     if (Event->event() != _lastEvent) initEvent(Event);
+  //     if (Event->id() != _lastEvent) initEvent(Event);
 
   //     if (_mcdigis == NULL) return -1;
 
@@ -212,13 +212,45 @@ namespace mu2e {
   //-----------------------------------------------------------------------------
   const SimParticle* TrkRecoMcUtils::getSimParticle(const art::Event* Event, int HitIndex) {
 
-    if (Event->event() != _lastEvent) initEvent(Event);
+    if (Event->id() != _lastEvent) initEvent(Event);
 
     return (*_mcdigis)[HitIndex].earlyStrawGasStep()->simParticle().get();
   }
 
   //-----------------------------------------------------------------------------
+  const XYZVectorF* TrkRecoMcUtils::getMom(const art::Event* Event, int HitIndex) {
+
+    if (Event->id() != _lastEvent) initEvent(Event);
+
+    return &(*_mcdigis)[HitIndex].earlyStrawGasStep()->momentum();
+  }
+
+  //-----------------------------------------------------------------------------
+  const XYZVectorF* TrkRecoMcUtils::getPos(const art::Event* Event, int HitIndex) {
+
+    if (Event->id() != _lastEvent) initEvent(Event);
+
+    return &(*_mcdigis)[HitIndex].earlyStrawGasStep()->startPosition();
+  }
+
+  //-----------------------------------------------------------------------------
   int   TrkRecoMcUtils::getID      (const SimParticle* Sim) { return Sim->id().asInt();  }
+
+  //-----------------------------------------------------------------------------
+  int   TrkRecoMcUtils::getMotherID(const SimParticle* Sim) {
+
+    const SimParticle* mother = Sim;
+    while(mother->hasParent()) mother = mother->parent().get();
+    return mother->id().asInt();
+  }
+
+  //-----------------------------------------------------------------------------
+  int   TrkRecoMcUtils::getMotherPdgID(const SimParticle* Sim) {
+
+    const SimParticle* mother = Sim;
+    while(mother->hasParent()) mother = mother->parent().get();
+    return mother->pdgId();
+  }
 
   //-----------------------------------------------------------------------------
   int   TrkRecoMcUtils::getPdgID   (const SimParticle* Sim) { return Sim->pdgId();  }

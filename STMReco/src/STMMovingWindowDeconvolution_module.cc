@@ -1,5 +1,7 @@
 //
-// Create zero-suppressed STMDigis from unsuppressed STMDigis
+// Perform MWD algorithm on zero-suppressed digis
+// Original authors: Claudia Alvarez-Garcia, Alex Keshavarzi, and Mark Lancaster (see DocDB-XXXXX for details)
+// Adapted for Offline: Andy Edmonds
 //
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Core/EDProducer.h"
@@ -8,6 +10,7 @@
 #include "cetlib_except/exception.h"
 #include "fhiclcpp/types/Atom.h"
 #include "fhiclcpp/types/Sequence.h"
+#include "fhiclcpp/types/OptionalAtom.h"
 #include "canvas/Utilities/InputTag.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
 
@@ -15,17 +18,21 @@
 #include "Offline/GlobalConstantsService/inc/GlobalConstantsHandle.hh"
 #include "Offline/GlobalConstantsService/inc/ParticleDataList.hh"
 
-#include "Offline/MCDataProducts/inc/StepPointMC.hh"
 #include <utility>
 #include <algorithm>
-// root
-#include "TH1F.h"
-#include "TF1.h"
 
-#include "Offline/DataProducts/inc/STMTypes.hh"
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
-#include "Offline/RecoDataProducts/inc/STMHit.hh"
-#include "Offline/STMReco/inc/MWDAlg.hh"
+#include "Offline/RecoDataProducts/inc/STMWaveformDigi.hh"
+#include "Offline/RecoDataProducts/inc/STMMWDDigi.hh"
+#include "Offline/Mu2eUtilities/inc/STMUtils.hh"
+#include "Offline/ProditionsService/inc/ProditionsHandle.hh"
+#include "Offline/STMConditions/inc/STMEnergyCalib.hh"
+
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+#include <boost/accumulators/statistics/mean.hpp>
+#include <boost/accumulators/statistics/variance.hpp>
+
+#include "TH1.h"
 
 using namespace std;
 using CLHEP::Hep3Vector;
@@ -36,15 +43,14 @@ namespace mu2e {
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
       struct Config {
-        fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
-        fhicl::Atom<double> M{ Name("M"), Comment("Input tag for number of channels")};
-        fhicl::Atom<double> L{ Name("L"), Comment("Input tage for the L parameter")};
-        fhicl::Atom<double> tau{ Name("tau"), Comment("Input tag for the RC time constant")};
-        fhicl::Atom<double> nsigma_cut{ Name("nsigma_cut"), Comment("Input tag for the the nsigma cut parameter")};
-        fhicl::Atom<double> thresholdgrad{ Name("thresholdgrad"), Comment("Input tag for the threshold gradient")};
-        fhicl::Atom<double> fADC{ Name("fADC"), Comment("Input tag for the ADC frequency")};
-        fhicl::Atom<int> cut_mode{ Name("cut_mode"), Comment("Input tag for the cut mode")};
-        fhicl::Atom<double> fixed_cut_parameter{ Name("fixed_cut_parameter"), Comment("Input tag for the fixed cut parameter")};
+        fhicl::Atom<art::InputTag> stmWaveformDigisTag{ Name("stmWaveformDigisTag"), Comment("InputTag for STMWaveformDigiCollection")};
+        fhicl::Atom<int> verbosityLevel{Name("verbosityLevel"), Comment("Verbosity level")};
+        fhicl::Atom<double> tau{Name("tau"), Comment("Decay constant of the waveform (used in the deconvolution step) [ns]")};
+        fhicl::Atom<double> M{Name("M"), Comment("M parameter (number of samples to differentiate between)")};
+        fhicl::Atom<double> L{Name("L"), Comment("L parameter (number of samples to average over)")};
+        fhicl::Atom<double> nsigma_cut{Name("nsigma_cut"), Comment("Number of sigma away from baseline_mean to cut (for finding peaks)")};
+        fhicl::Atom<double> thresholdgrad{Name("thresholdgrad"), Comment("Threshold on gradient to cut out peaks when calculating baseline")};
+        fhicl::OptionalAtom<std::string> xAxis{ Name("xAxis"), Comment("Choice of x-axis unit for histograms if verbosity level >= 5: \"sample_number\", \"waveform_time\", or \"event_time\"") };
       };
       using Parameters = art::EDProducer::Table<Config>;
       explicit STMMovingWindowDeconvolution(const Parameters& conf);
@@ -52,77 +58,239 @@ namespace mu2e {
     private:
     void beginJob() override;
     void produce(art::Event& e) override;
-    void endJob() override;
-    std::vector<int> mwd_event_size;
-    int num_event;
 
-    art::InputTag _stmDigisTag;
-    mu2e::MWDAlg _mwd;
+    void deconvolve(const STMWaveformDigi& waveform, std::vector<double>& deconvolved_data, const STMEnergyCalib& stmEnergyCalib);
+    void differentiate(const std::vector<double>& deconvolved_data, std::vector<double>& differentiated_data);
+    void average(const std::vector<double>& differentiated_data, std::vector<double>& averaged_data);
+    void calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev);
+    void find_peaks(const std::vector<double>& averaged_data, std::vector<double>& peak_heights, std::vector<double>& peak_times, const double baseline_mean, const double baseline_stddev);
+
+    void make_debug_histogram(const art::Event& event, int count, const STMWaveformDigi& waveform, const STMEnergyCalib& stmEnergyCalib, const std::vector<double>& deconvolved_data, const std::vector<double>& differentiated_data, const std::vector<double>& averaged_data, const double baseline_mean, const double baseline_stddev, const std::vector<double>& peak_heights, const std::vector<double>& peak_times);
+
+    int _verbosityLevel;
+    art::ProductToken<STMWaveformDigiCollection> _stmWaveformDigisToken;
+    STMChannel _channel;
+    ProditionsHandle<STMEnergyCalib> _stmEnergyCalib_h;
+
+    double _tau; // decay time of waveform [ns] (used in deconvolution step)
+    double _M; // M-parameter (used in differentiation step)
+    double _L; // L-parameter (used in averaging step)
+    double _nsigma_cut; // number of sigma away from baseline mean to cut (used in find_peaks)
+    double _thresholdgrad; // threshold on gradient
+
+    std::string _xAxis; // optional parameter for x-axis unit if plotting histograms
   };
 
-  STMMovingWindowDeconvolution::STMMovingWindowDeconvolution(const Parameters& config )  :
+  STMMovingWindowDeconvolution::STMMovingWindowDeconvolution(const Parameters& config ) :
     art::EDProducer{config}
-    ,_stmDigisTag(config().stmDigisTag())
-    ,_mwd(config().M(),config().L(),config().tau(),config().nsigma_cut(),config().thresholdgrad(),config().fADC(),config().cut_mode(),config().fixed_cut_parameter())
+    ,_verbosityLevel(config().verbosityLevel())
+    ,_stmWaveformDigisToken(consumes<STMWaveformDigiCollection>(config().stmWaveformDigisTag()))
+    ,_channel(STMUtils::getChannel(config().stmWaveformDigisTag()))
+    ,_tau(config().tau())
+    ,_M(config().M())
+    ,_L(config().L())
+    ,_nsigma_cut(config().nsigma_cut())
+    ,_thresholdgrad(config().thresholdgrad())
   {
-    consumes<STMDigiCollection>(_stmDigisTag);
-    produces<STMDigiCollection>();
+    produces<STMMWDDigiCollection>();
+
+    if (!config().xAxis(_xAxis)) {
+      if (_verbosityLevel >= 5) {
+        throw cet::exception("STMMovingWindowDecomposition") << "No xAxis scale defined despite requesting verbosity level >= 5" << std::endl;
+      }
+    }
   }
 
   void STMMovingWindowDeconvolution::beginJob() {
-    num_event = 0;
   }
-    void STMMovingWindowDeconvolution::produce(art::Event& event) {
+
+  void STMMovingWindowDeconvolution::produce(art::Event& event) {
     // create output
-    unique_ptr<STMDigiCollection> outputSTMDigis(new STMDigiCollection);
-    auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
+    unique_ptr<STMMWDDigiCollection> outputMWDDigis(new STMMWDDigiCollection);
+    auto waveformDigisHandle = event.getValidHandle(_stmWaveformDigisToken);
 
-    //    std::cout << _mwd.print() << std::endl;
-    for (const auto& digi : *digisHandle) {
-      mu2e::data dat;
-      dat.adc = &digi.adcs()[0];
-      dat.t0 = digi.trigTime();
-      dat.nadc = digi.adcs().size();
-      _mwd.mwd_algorithm(&dat);
-      //      _mwd.mwd_algorithm(&digi.adcs()[0], digi.adcs().size());
-      std::vector<double> baseline =  _mwd.calculate_baseline();
-      //std::cout << "AE: baseline = " << baseline.at(0) << ", sigma = " << baseline.at(1) << std::endl;
+    STMEnergyCalib const& stmEnergyCalib = _stmEnergyCalib_h.get(event.id()); // get prodition
 
-      auto peaks = _mwd.find_peaks(baseline.at(0), baseline.at(1), 0);
+    std::vector<double> deconvolved_data;
+    std::vector<double> differentiated_data;
+    std::vector<double> averaged_data;
+    int count = 0;
+    for (const auto& waveform : *waveformDigisHandle) {
 
-      for (int i_peak = 0; i_peak < peaks->npeaks; ++i_peak) {
-        std::vector<int16_t> mwd_adcs;
-        mwd_adcs.push_back(peaks->peak_heights.at(i_peak));
+      // clear out data from previous waveform
+      deconvolved_data.clear();
+      deconvolved_data.reserve(waveform.adcs().size());
+      differentiated_data.clear();
+      differentiated_data.reserve(waveform.adcs().size());
+      averaged_data.clear();
+      averaged_data.reserve(waveform.adcs().size());
 
-        uint32_t extra = ((uint32_t)baseline.at(1) << 16) | ((uint32_t)baseline.at(0)); // RMS << Mean
-        STMDigi stm_digi(STMTrigType(digi.trigType().mode(), digi.trigType().channel().id(), STMDataType::kMWD), digi.trigTime()+(peaks->peak_times.at(i_peak))*1e3, 0, extra, STMDigiFlag::kOK, mwd_adcs);
-        outputSTMDigis->push_back(stm_digi);
+      deconvolve(waveform, deconvolved_data, stmEnergyCalib);
+      differentiate(deconvolved_data, differentiated_data);
+      average(differentiated_data, averaged_data);
+
+      double baseline_mean = 0;
+      double baseline_stddev = 0;
+      calculate_baseline(averaged_data, baseline_mean, baseline_stddev);
+
+      std::vector<double> peak_heights;
+      std::vector<double> peak_times;
+      find_peaks(averaged_data, peak_heights, peak_times, baseline_mean, baseline_stddev);
+      for (size_t i_peak = 0; i_peak < peak_heights.size(); ++i_peak) {
+        STMMWDDigi mwd_digi(peak_times[i_peak], -1*peak_heights[i_peak]); // peak_heights are negative, make them positive here
+        outputMWDDigis->push_back(mwd_digi);
+      }
+
+      if (_verbosityLevel >= 5) {
+        make_debug_histogram(event, count, waveform, stmEnergyCalib, deconvolved_data, differentiated_data, averaged_data, baseline_mean, baseline_stddev, peak_heights, peak_times);
+      }
+
+      ++count;
+    }
+    if (_verbosityLevel > 0) {
+      std::cout << _channel.name() << ": " << outputMWDDigis->size() << " MWD digis found" << std::endl;
+    }
+    event.put(std::move(outputMWDDigis));
+  }
+
+  void STMMovingWindowDeconvolution::deconvolve(const STMWaveformDigi& waveform, std::vector<double>& deconvolved_data, const STMEnergyCalib& stmEnergyCalib) {
+    const auto pedestal = stmEnergyCalib.pedestal(_channel);
+    const auto nsPerCt = stmEnergyCalib.nsPerCt(_channel);
+    const auto& input_data = waveform.adcs();
+    deconvolved_data.push_back(input_data[0] - pedestal);
+    for(size_t i=1; i<input_data.size(); i++){
+      deconvolved_data.push_back((input_data[i]-pedestal)-(1-(nsPerCt/_tau))*(input_data[i-1]-pedestal) + deconvolved_data[i-1]);
+    }
+  }
+
+  void STMMovingWindowDeconvolution::differentiate(const std::vector<double>& deconvolved_data, std::vector<double>& differentiated_data) {
+    for (size_t i = 0; i < _M; ++i) {
+      differentiated_data.push_back(deconvolved_data[i]);
+    }
+    for (size_t i = _M; i < deconvolved_data.size(); ++i) {
+      differentiated_data.push_back(deconvolved_data[i] - deconvolved_data[i-_M]);
+    }
+  }
+
+  void STMMovingWindowDeconvolution::average(const std::vector<double>& differentiated_data, std::vector<double>& averaged_data) {
+
+    double sum = 0.;
+    // sum the first L-1 elements of differentiated data
+    // and set the first L-1 elements of averaged data
+    for (size_t i = 0; i < _L-1; ++i) {
+      sum += differentiated_data[i];
+      averaged_data.push_back(differentiated_data[i]);
+    }
+    sum += differentiated_data[_L-1];
+    averaged_data.push_back(sum/_L);
+
+    for (size_t i = _L; i < differentiated_data.size(); ++i) {
+      sum += differentiated_data[i]-differentiated_data[i-_L]; // move the sum across one sample
+      averaged_data.push_back(sum/_L);
+    }
+  }
+
+  void STMMovingWindowDeconvolution::calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev){
+
+    int k = _M;
+    int nadc = averaged_data.size();
+
+    using namespace boost::accumulators;
+    accumulator_set<double, stats<tag::mean, tag::variance> > acc_data_without_peaks;
+
+    // Remove peaks so that we can calculate the baseline of the averaged data
+    while (k < nadc){
+      double gradient = averaged_data[k+1] - averaged_data[k];
+      if(gradient < _thresholdgrad){ // if the gradient is too sharp (i.e. we have hit a peak)
+        k = k + (_M+2*_L); // jump ahead a little bit
+        continue;
+      }
+      else {
+        acc_data_without_peaks(averaged_data[k]);
+        k++;
       }
     }
-    std::cout << "AE: No. MWD Digis = " << outputSTMDigis->size() << std::endl;
-    mwd_event_size.push_back(outputSTMDigis->size());
-    event.put(std::move(outputSTMDigis));
-    //std::cout << num_event << std::endl;
-    num_event++;
-    //std::cout << mwd_event_size.back() << std::endl;
+
+    mean = extract_result<tag::mean>(acc_data_without_peaks);
+    double variance = extract_result<tag::variance>(acc_data_without_peaks);
+    stddev = std::sqrt(variance);
   }
 
-  void STMMovingWindowDeconvolution::endJob() {
-    // Calculate mean and std of output digis
-    double size_mean = 0.0;
-    double sum = 0.0;
-    std::cout << "Number of events: " << num_event << std::endl;
-    for (int i = 0; i < num_event; i++)
-      {
-        sum += mwd_event_size.at(i);
+  void STMMovingWindowDeconvolution::find_peaks(const std::vector<double>& averaged_data, std::vector<double>& peak_heights, std::vector<double>& peak_times, const double baseline_mean, const double baseline_stddev) {
+
+    double threshold_cut = baseline_mean - _nsigma_cut*baseline_stddev;
+
+    int n = averaged_data.size();
+    double lowest_height = 0;
+    int lowest_height_time = -1; // in clock ticks
+
+    for( int i = _M; i < n; i++){
+      //      std::cout << "i = " << i << ", avg[i] = " << averaged_data[i] << ": ";
+      if (averaged_data[i] < threshold_cut){ // the waveforms are negative so if we go below this threshold we have seen a peak
+        //        std::cout << " below threshold, ";
+        if ((averaged_data[i] < averaged_data[i-1]) && averaged_data[i] < lowest_height){ // if the current value is lower than the previous value and lower than the lowest value we've seen so far
+          lowest_height = averaged_data[i]; // record the lowest height
+
+          if (lowest_height_time == -1) {
+            lowest_height_time = i; // record the time we cross the threshold
+          }
+        }
+        else {
+          //          std::cout << " not low enough." << std::endl;
+          continue;
+        }
       }
-    size_mean = sum/(num_event);
-    std::cout << "Mean: " << size_mean << std::endl;
-    // out file
-    std::ofstream out;
-    out.open("mwdSize.log", ios::out | ios::app);
-    out << size_mean << std::endl;
-    out.close();
+
+      if (lowest_height_time == -1) { // this will be true if we haven't seen a peak yet
+        //        std::cout << " not found peak yet." << std::endl;
+        continue;
+      }
+      else if (averaged_data[i] > threshold_cut){ // if we have seen a peak and go above the cut
+        //        std::cout << " all done.";
+        // record the height and time
+        peak_heights.push_back(lowest_height - baseline_mean);
+        peak_times.push_back(lowest_height_time); // ct
+
+        lowest_height_time=-1; // reset to 0 so we can find a new peak
+        lowest_height = 0;
+      }
+      //      std::cout << std::endl;
+    }
+  }
+
+  void STMMovingWindowDeconvolution::make_debug_histogram(const art::Event& event, int count, const STMWaveformDigi& waveform, const STMEnergyCalib& stmEnergyCalib, const std::vector<double>& deconvolved_data, const std::vector<double>& differentiated_data, const std::vector<double>& averaged_data, const double baseline_mean, const double baseline_stddev, const std::vector<double>& peak_heights, const std::vector<double>& peak_times) {
+    art::ServiceHandle<art::TFileService> tfs;
+    std::stringstream histsuffix;
+    histsuffix.str("");
+    histsuffix << "_evt" << event.event() << "_wvf" << count;
+
+    const auto pedestal = stmEnergyCalib.pedestal(_channel);
+    const auto nsPerCt = stmEnergyCalib.nsPerCt(_channel);
+    Binning binning = STMUtils::getBinning(waveform, _xAxis, nsPerCt);
+    TH1D* h_waveform = tfs->make<TH1D>(("h_waveform"+histsuffix.str()).c_str(), "Waveform", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_deconvolved = tfs->make<TH1D>(("h_deconvolved"+histsuffix.str()).c_str(), "Deconvolution", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_differentiated = tfs->make<TH1D>(("h_differentiated"+histsuffix.str()).c_str(), "Differentiated", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_averaged = tfs->make<TH1D>(("h_averaged"+histsuffix.str()).c_str(), "Averaged", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_baseline_mean = tfs->make<TH1D>(("h_baseline_mean"+histsuffix.str()).c_str(), "Baseline Mean", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_baseline_mean_plus_stddev = tfs->make<TH1D>(("h_baseline_mean_plus_stddev"+histsuffix.str()).c_str(), "Baseline Mean + StdDev", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_baseline_mean_minus_stddev = tfs->make<TH1D>(("h_baseline_mean_minus_stddev"+histsuffix.str()).c_str(), "Baseline Mean - StdDev", binning.nbins(),binning.low(),binning.high());
+    TH1D* h_peak_threshold = tfs->make<TH1D>(("h_peak_threshold"+histsuffix.str()).c_str(), "Threshold", binning.nbins(),binning.low(),binning.high());
+
+    for (size_t i = 0; i < deconvolved_data.size(); ++i) {
+      h_waveform->SetBinContent(i+1, waveform.adcs()[i] - pedestal); // remove the pedestal
+      h_deconvolved->SetBinContent(i+1, deconvolved_data[i]);
+      h_differentiated->SetBinContent(i+1, differentiated_data[i]);
+      h_averaged->SetBinContent(i+1, averaged_data[i]);
+      h_baseline_mean->SetBinContent(i+1, baseline_mean);
+      h_baseline_mean_plus_stddev->SetBinContent(i+1, baseline_mean + baseline_stddev);
+      h_baseline_mean_minus_stddev->SetBinContent(i+1, baseline_mean - baseline_stddev);
+      h_peak_threshold->SetBinContent(i+1, baseline_mean - _nsigma_cut*baseline_stddev);
+    }
+    TH1D* h_peaks = tfs->make<TH1D>(("h_peaks"+histsuffix.str()).c_str(), "Peaks", binning.nbins(),binning.low(),binning.high());
+    for (size_t i_peak = 0; i_peak < peak_heights.size(); ++i_peak) {
+      //      std::cout << "t = " << peak_times[i_peak] << ", E = " << peak_heights[i_peak] << std::endl;
+      h_peaks->SetBinContent(peak_times[i_peak]+1, peak_heights[i_peak]);
+    }
   }
 }
 

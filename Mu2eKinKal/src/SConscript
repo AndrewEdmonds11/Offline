@@ -16,6 +16,7 @@ rootlibs = env['ROOTLIBS']
 helper = mu2e_helper(env)
 
 mainlib = helper.make_mainlib([
+  'openblas',
   'mu2e_TrkReco',
   'mu2e_ConditionsService',
   'mu2e_TrackerConditions',
@@ -28,6 +29,7 @@ mainlib = helper.make_mainlib([
   'mu2e_GlobalConstantsService',
   'mu2e_Mu2eInterfaces',
   'mu2e_DataProducts',
+  'mu2e_Mu2eUtilities',
   'mu2e_GeneralUtilities',
   'art_Framework_Core',
   'art_Framework_Principal',
@@ -50,10 +52,12 @@ mainlib = helper.make_mainlib([
   'KinKal_General',
   rootlibs,
   'CLHEP',
-  'boost_system'
+  'boost_system',
+  'xerces-c'
   ])
 
 helper.make_plugins([mainlib,
+  'openblas',
   'mu2e_Mu2eUtilities',
   'mu2e_TrkReco',
   'mu2e_ConditionsService',
@@ -95,6 +99,7 @@ helper.make_plugins([mainlib,
   'KinKal_General',
   rootlibs,
   extrarootlibs,
+  'ROOTTMVASofie',
   'xerces-c',
   'boost_filesystem',
   'pthread'

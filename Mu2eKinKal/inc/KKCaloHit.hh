@@ -37,6 +37,7 @@ namespace mu2e {
       KKCaloHit(CCPtr caloCluster,  PCA const& pca, double tvar, double wvar);
       virtual ~KKCaloHit(){}
       Residual const& timeResidual() const { return rresid_; }
+      CA unbiasedClosestApproach() const;
       // the line encapsulates both the measurement value (through t0), and the light propagation model (through the velocity)
       auto const& sensorAxis() const { return saxis_; }
       auto const& closestApproach() const { return tpca_; }
@@ -70,7 +71,7 @@ namespace mu2e {
     // from which it's impossible to ever get back to the correct one.  Active loop checking might be useful eventually too TODO
     //    if(tpca_.usable()) tphint = CAHint(tpca_.particleToca(),tpca_.sensorToca());
     tpca_ = CA(ktrajptr,saxis_,tphint,tpca_.precision());
-    if(!tpca_.usable())throw cet::exception("RECO")<<"mu2e::KKCaloHit: TPOCA failure" << std::endl;
+    if(!tpca_.usable())rresid_ = Residual(rresid_.value(),rresid_.variance(),0.0,false,rresid_.dRdP());
   }
 
   template <class KTRAJ> void KKCaloHit<KTRAJ>::updateState(MetaIterConfig const& miconfig,bool first) {
@@ -91,15 +92,26 @@ namespace mu2e {
       auto tphint = tpca_.hint();
       tphint.particleToca_ -= sdist/sspeed;
       tpca_ = CA(tpca_.particleTrajPtr(),saxis_,tphint,precision());
-      // should check if this is still unphysical and disable the hit if so FIXME
     }
-    // residual is just delta-T at CA.
-    // the variance includes the measurement variance and the tranvserse size (which couples to the relative direction)
-    double dd2 = tpca_.dirDot()*tpca_.dirDot();
-    double totvar = tvar_ + wvar_*dd2/(saxis_.speed()*saxis_.speed()*(1.0-dd2));
-    rresid_ = Residual(tpca_.deltaT(),totvar,0.0,true,-tpca_.dTdP());
+    if(tpca_.usable()){
+      // residual is just delta-T at CA.
+      // the variance includes the measurement variance and the tranvserse size (which couples to the relative direction)
+      double dd2 = std::max(0.0001,tpca_.dirDot()*tpca_.dirDot());
+      double totvar = tvar_ + wvar_/(saxis_.speed()*saxis_.speed()*(1.0-dd2));
+      rresid_ = Residual(tpca_.deltaT(),totvar,0.0,true,tpca_.dTdP());
+    } else {
+      rresid_ = Residual(rresid_.value(),rresid_.variance(),0.0,false,rresid_.dRdP());
+    }
     // finally update the weight
     this->updateWeight(miconfig);
+  }
+
+  template <class KTRAJ> KinKal::ClosestApproach<KTRAJ,Line> KKCaloHit<KTRAJ>::unbiasedClosestApproach() const {
+    // compute the unbiased closest approach; this is brute force, but works
+    auto const& ca = this->closestApproach();
+    auto uparams = HIT::unbiasedParameters();
+    KTRAJ utraj(uparams,ca.particleTraj());
+    return CA(utraj,saxis_,ca.hint(),ca.precision());
   }
 
   template<class KTRAJ> void KKCaloHit<KTRAJ>::print(std::ostream& ost, int detail) const {

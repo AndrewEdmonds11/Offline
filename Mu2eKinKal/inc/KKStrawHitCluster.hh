@@ -6,8 +6,9 @@
 //
 #include "KinKal/Detector/Hit.hh"
 #include "Offline/Mu2eKinKal/inc/KKStrawHit.hh"
-#include "Offline/Mu2eKinKal/inc/CombinatoricStrawHitUpdater.hh"
+#include "Offline/Mu2eKinKal/inc/KKStrawXing.hh"
 #include "Offline/Mu2eKinKal/inc/WHSIterator.hh"
+#include "Offline/Mu2eKinKal/inc/Chi2SHU_updateCluster.hh"
 #include "Offline/DataProducts/inc/StrawIdMask.hh"
 #include "cetlib_except/exception.h"
 #include <vector>
@@ -42,6 +43,9 @@ namespace mu2e {
       using KKSTRAWHIT = KKStrawHit<KTRAJ>;
       using KKSTRAWHITPTR = std::shared_ptr<KKSTRAWHIT>;
       using KKSTRAWHITCOL = std::vector<KKSTRAWHITPTR>;
+      using KKSTRAWXING = KKStrawXing<KTRAJ>;
+      using KKSTRAWXINGPTR = std::shared_ptr<KKSTRAWXING>;
+      using KKSTRAWXINGCOL = std::vector<KKSTRAWXINGPTR>;
       using KTRAJPTR = std::shared_ptr<KTRAJ>;
       using KKSTRAWHITCLUSTERER = KKStrawHitClusterer<KTRAJ>;
       KKStrawHitCluster() {}
@@ -62,12 +66,16 @@ namespace mu2e {
       void print(std::ostream& ost=std::cout,int detail=0) const override;
       ~KKStrawHitCluster(){}
       // KKStrawHitCluster specific interface
+      KinKal::TimeRange timeRange() const;
       auto const& strawHits() const { return hits_; }
+      auto const& strawXings() const { return xings_; }
       bool canAddHit(KKSTRAWHITPTR hit,KKSTRAWHITCLUSTERER const& clusterer) const;
       void addHit(KKSTRAWHITPTR hit,KKSTRAWHITCLUSTERER const& clusterer);
+      void addXing(KKSTRAWXINGPTR xing);
     private:
-      // references to the individual hits in this hit cluster
+      // references to the individual hits and xings in this hit cluster
       KKSTRAWHITCOL hits_;
+      KKSTRAWXINGCOL xings_;
   };
 
   template<class KTRAJ>  KKStrawHitCluster<KTRAJ>::KKStrawHitCluster(KKSTRAWHITPTR const& hitptr) {
@@ -97,41 +105,66 @@ namespace mu2e {
     hits_.push_back(hit);
   }
 
-  template<class KTRAJ> double KKStrawHitCluster<KTRAJ>::time() const {
-    // return time just past the last hit's time.  This insures hit clusters are updated after individual hits
-    // that shouldn't matter, but...
-    double maxtime(-std::numeric_limits<float>::max());
-    unsigned nactive(0);
-    for(auto const& hit : hits_){
-      if(hit && hit->active())++nactive;
-      maxtime = std::max(hit->time(),maxtime);
+  template<class KTRAJ> void KKStrawHitCluster<KTRAJ>::addXing(KKSTRAWXINGPTR sxing) {
+// make sure this Xing isn't already here
+    bool exists(false);
+    for(auto const& xing : xings_) {
+      if(sxing->strawId() == xing->strawId()){
+        exists = true;
+        break;
+      }
     }
-    static double epsilon(1e-6);
-    return maxtime + epsilon;
+    if(!exists)xings_.push_back(sxing);
+  }
+
+  template<class KTRAJ> double KKStrawHitCluster<KTRAJ>::time() const {
+    // return time just before the first hit's time.  This insures hit clusters are updated before individual hits
+    // This insures the weights subtracted correspond to the reference fit, and that any changes made to the
+    // hits in the cluster get propagated to the residuals and weights before the next fit
+    double mintime(std::numeric_limits<float>::max());
+    for(auto const& hit : hits_){
+      mintime = std::min(hit->time(),mintime);
+    }
+    static double epsilon(1e-6); // small time
+    return mintime - epsilon;
+  }
+
+  template<class KTRAJ> KinKal::TimeRange KKStrawHitCluster<KTRAJ>::timeRange() const {
+    double tmin(0.0), tmax(0.0);
+   if(hits_.size() >0){
+      tmin = tmax = hits_.front()->time();
+      for (auto const& hit: hits_) {
+        tmin = std::min(hit->time(),tmin);
+        tmax = std::max(hit->time(),tmax);
+      }
+    }
+    return KinKal::TimeRange(tmin,tmax);
   }
 
   template<class KTRAJ> void KKStrawHitCluster<KTRAJ>::updateState(KinKal::MetaIterConfig const& miconfig,bool first) {
     if(first){
       // look for an updater; if it's there, update the state
       // Extend this logic if new StrawHitCluster updaters are introduced
-      auto cshu = miconfig.findUpdater<CombinatoricStrawHitUpdater>();
+      auto cshu = miconfig.findUpdater<Chi2SHU>();
       if(cshu != 0){
-        cshu->updateHits<KTRAJ>(hits_,miconfig);
+        cshu->updateCluster<KTRAJ>(*this,miconfig);
       }
     }
+    // on subsequent iterations the cluster is left unchanged (but the residuals still are updated)
   }
 
   template<class KTRAJ> void KKStrawHitCluster<KTRAJ>::print(std::ostream& ost, int detail) const {
     unsigned nactive(0), ndrift(0);
     for(auto const& hit : hits_){
       if(hit->active()) ++nactive;
-      if(hit->hitState().useDrift()) ++ndrift;
+      if(hit->hitState().driftConstraint()) ++ndrift;
     }
     ost << " KKStrawHitCluster with " << nactive << " active hits with " << ndrift  << " using drift information among " << hits_.size() << " total" << std::endl;
     if(detail > 0){
-      for(auto const& hit : hits_) {
-        ost << hit->strawId() << std::endl;
-      }
+      ost << "Hits ";
+      for(auto const& hit : hits_) ost << hit->strawId() << " time " << hit->time();
+      ost << " Xings ";
+      for(auto const& xing : xings_) ost << xing->strawId() << " time " << xing->time() << std::endl;
     }
   }
 }

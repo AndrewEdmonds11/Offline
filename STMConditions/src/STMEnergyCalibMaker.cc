@@ -17,15 +17,43 @@ STMEnergyCalib::ptr_t STMEnergyCalibMaker::fromFcl() {
   cmap[STMChannel(STMChannel::enum_type::HPGe)] = nominal;
   cmap[STMChannel(STMChannel::enum_type::LaBr)] = nominal;
 
-  auto ptr = std::make_shared<STMEnergyCalib>(cmap);
+  STMEnergyCalib::PedestalMap pmap;
+  for (auto const& entry : _config.pedestals()) {
+    std::string name = std::get<0>(entry);
+    auto channel = STMChannel::findByName(name);
+    if (!channel.isValid()) {
+      throw cet::exception("STMENERGYCALIBMAKER_BAD_CHANNEL")
+          << "STMEnergyCalibMaker::fromFcl called with bad channel name: "
+          << name << "\n";
+    }
+    pmap[channel] = std::get<1>(entry);
+  }
+
+  STMEnergyCalib::SamplingFrequencyMap sfmap;
+  for (auto const& entry : _config.samplingFrequencies()) {
+    std::string name = std::get<0>(entry);
+    auto channel = STMChannel::findByName(name);
+    if (!channel.isValid()) {
+      throw cet::exception("STMENERGYCALIBMAKER_BAD_CHANNEL")
+          << "STMEnergyCalibMaker::fromFcl called with bad channel name: "
+          << name << "\n";
+    }
+    sfmap[channel] = std::get<1>(entry);
+  }
+
+  auto ptr = std::make_shared<STMEnergyCalib>(cmap, pmap, sfmap);
   return ptr;
 
 }  // end fromFcl
 
-STMEnergyCalib::ptr_t STMEnergyCalibMaker::fromDb(STMEnergyPar::cptr_t sep_p) {
+STMEnergyCalib::ptr_t STMEnergyCalibMaker::fromDb(STMEnergyPar::cptr_t sep_p,
+                                                  STMPedestals::cptr_t ped_p) {
   if (_config.verbose()) {
-    std::cout << "STMEnergyCalibMaker::fromDb making nominal STMEnergyCalib\n";
+    std::cout << "STMEnergyCalibMaker::fromDb making STMEnergyCalib\n";
   }
+
+  // get parameters from fcl first and then overwrite
+  auto ptr = fromFcl();
 
   STMEnergyCalib::CalibMap cmap;
 
@@ -41,8 +69,19 @@ STMEnergyCalib::ptr_t STMEnergyCalibMaker::fromDb(STMEnergyPar::cptr_t sep_p) {
                 << std::setw(9) << corr.p1 << std::setw(9) << corr.p2 << "\n";
     }
   }
+  ptr->setCalib(cmap);
 
-  auto ptr = std::make_shared<STMEnergyCalib>(cmap);
+  STMEnergyCalib::PedestalMap pmap;
+  for (auto const& row : ped_p->rows()) {
+    pmap[row.channel()] = row.pedestal();
+    if (_config.verbose()) {
+      std::cout << std::setw(10) << row.channel().name() << std::fixed
+                << std::setprecision(5) << std::setw(9) << row.pedestal()
+                << "\n";
+    }
+  }
+  ptr->setPedestal(pmap);
+
   return ptr;
 
 }  // end fromDb
