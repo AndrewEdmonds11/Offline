@@ -52,6 +52,7 @@ namespace mu2e {
     TH1D* _energySpectrumOn;
     TH1D* _energySpectrumOff;
     TH1D* _timeSpectrum;
+    TH1D* _fullEnergySpectrum;
     std::string _beam_state;
   };
 
@@ -68,6 +69,7 @@ namespace mu2e {
     // create TTree
     _energySpectrumOff=tfs->make<TH1D>("energySpectrumOff", "Energy Spectrum Beam Off; Energy (MeV); Counts", 3000,0,3.0);
     _energySpectrumOn=tfs->make<TH1D>("energySpectrumOn", "Energy Spectrum On; Energy (MeV); Counts", 3000,0,3.0);
+    _fullEnergySpectrum=tfs->make<TH1D>("fullEnergySpectrum", "Energy Spectrum Full; Energy (MeV); Counts", 3000,0,3.0);
     _timeSpectrum=tfs->make<TH1D>("timeSpectrum","Time Difference Energy", 1000, 0, 1000.0);
   }
 
@@ -97,6 +99,7 @@ namespace mu2e {
         float energy = hit[i].energy();
         _energySpectrumOff->Fill(energy);
       }
+      _fullEnergySpectrum->Fill(hit[i].energy());
     //    for (const auto& hit : *hitsHandle) {
       //      float time = hit.time();
       //float energy = hit.energy();

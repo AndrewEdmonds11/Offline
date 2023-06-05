@@ -1,5 +1,5 @@
 //
-// Analyzer module to create a histogram of the STMDigi energies
+// Analyzer module to create a histogram of the STMMWDDigi energies
 //
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -21,7 +21,7 @@
 #include "TF1.h"
 #include "TTree.h"
 
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
+#include "Offline/RecoDataProducts/inc/STMMWDDigi.hh"
 
 using namespace std;
 using CLHEP::Hep3Vector;
@@ -32,7 +32,7 @@ namespace mu2e {
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
       struct Config {
-       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
+       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMMWDDigiCollection")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
       explicit PlotSTMMWDDigis(const Parameters& conf);
@@ -45,60 +45,65 @@ namespace mu2e {
 
     art::InputTag _stmDigisTag;
     TH1D* _baselineMean;
+    TH1D* _hTimeSeparation;
   };
 
   PlotSTMMWDDigis::PlotSTMMWDDigis(const Parameters& config )  :
     art::EDAnalyzer{config},
     _stmDigisTag(config().stmDigisTag())
   {
-    consumes<STMDigiCollection>(_stmDigisTag);
+    consumes<STMMWDDigiCollection>(_stmDigisTag);
   }
 
   void PlotSTMMWDDigis::beginJob() {
     art::ServiceHandle<art::TFileService> tfs;
     // create TTree
     _baselineMean=tfs->make<TH1D>("baselineMean", "Energy Spectrum", 5000,0,5000.0);
+    // Double check the separation histogram
+    _hTimeSeparation = tfs->make<TH1D>("hTimeSeparation", "hTimeSeparation; Time [clock ticks];Samples", 3e3,0,3e3);
   }
 
   void PlotSTMMWDDigis::analyze(const art::Event& event) {
     art::ServiceHandle<art::TFileService> tfs;
-    auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
+    auto digisHandle = event.getValidHandle<STMMWDDigiCollection>(_stmDigisTag);
     //int j = 0;
     const auto& digi = *digisHandle;
     int digiSize = int (digi.size());
+    double sampFreq = 370.370370370;
+    double _ctPerNs = 1.0/(sampFreq*1e-3);
+
     TString fnameOn = Form("DigiSpectrumOn_%d", event.event());
     TString fnameOff = Form("DigiSpectrumOff_%d", event.event());
-
+    TString fnameFull = Form("DigiSpectrumFull_%d", event.event());
 
     // Create On and Off Histograms explicitly
-    TH1D* _hWaveformOn = tfs->make<TH1D>(fnameOn,fnameOn+";Time [ns];Samples", 5500928,30701490521,3.07187e10);
-    TH1D* _hWaveformOff = tfs->make<TH1D>(fnameOff,fnameOff+";Time [ns];Samples", 5500928,30701490521,3.07187e10);
-
-    // Double check the separation histogram
-    TH1D* _hTimeSeparation = tfs->make<TH1D>("hTimeSeparation", "hTimeSeparation; Time [ns];Samples", 6e5,0,6e6);
+    TH1D* _hWaveformOn = tfs->make<TH1D>(fnameOn,fnameOn+";Time [ns];Samples", 5500928,86.4,14852592);
+    TH1D* _hWaveformOff = tfs->make<TH1D>(fnameOff,fnameOff+";Time [ns];Samples", 5500928,86.4,14852592);
+    TH1D* _hWaveformFull = tfs->make<TH1D>(fnameFull,fnameFull+";Time [ns];Samples", 5500928,86.40,14852592);
 
     for (int j = 0; j < digiSize - 1; j++) {
       //     float baselineMean = digi.baselineMean();
       //_baselineMean->Fill(baselineMean);
-      _hTimeSeparation->Fill(digi[j+1].trigTime()-digi[j].trigTime());
+      _hTimeSeparation->Fill(std::fmod(digi[j+1].time()-digi[j].time(),180));
+      _hWaveformFull->Fill(digi[j].time()*_ctPerNs, -digi[j].energy());
 
+      std::cout << "Converted time: " << digi[j].time()*_ctPerNs << std::endl;
+      std::cout << "Energy: " << digi[j].energy() << std::endl;
       //if(digi[j].trigType().mode() == STMTriggerMode::kExternal)
       // 5e5 for high rate, 260 for low rate
-      if((digi[j+1].trigTime() - digi[j].trigTime() < 5e5))
+
+      if((std::fmod(digi[j+1].time() - digi[j].time(),180) < 75))
         {
-           _hWaveformOn->Fill(digi[j].trigTime(), digi[j].adcs().at(0));
+           _hWaveformOn->Fill(digi[j].time()*_ctPerNs, -digi[j].energy());
         }
       else
         {
-           _hWaveformOff->Fill(digi[j].trigTime(), digi[j].adcs().at(0));
-           std::cout << digi[j].trigTime()*3.125<< std::endl;
+           _hWaveformOff->Fill(digi[j].time()*_ctPerNs, -digi[j].energy());
+           std::cout << digi[j].time()*3.125<< std::endl;
         }
-      /*
-      std::cout << "Trig type = " << digi.trigType().data() << std::endl;
-      std::cout << "Mode = " << digi.trigType().mode() << std::endl;
-      std::cout << "Trig time = " << digi.trigTime() << std::endl;
-      */
-
+      //std::cout << "Trig type = " << digi.trigType().data() << std::endl;
+      //std::cout << "Mode = " << digi.trigType().mode() << std::endl;
+      std::cout << "Trig time = " << digi[j].time() << std::endl;
     }
   }
   void PlotSTMMWDDigis::endJob() {

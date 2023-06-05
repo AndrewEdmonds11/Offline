@@ -1,5 +1,5 @@
 //
-// Analyzer module to create a histogram of the STMDigi energies
+// Analyzer module to create a histogram of the STMMWDDigi energies
 //
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -21,7 +21,7 @@
 #include "TF1.h"
 #include "TTree.h"
 
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
+#include "Offline/RecoDataProducts/inc/STMMWDDigi.hh"
 
 using namespace std;
 using CLHEP::Hep3Vector;
@@ -32,7 +32,7 @@ namespace mu2e {
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
       struct Config {
-       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
+       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMMWDDigiCollection")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
       explicit PlotSTMDigisSpectrum(const Parameters& conf);
@@ -45,6 +45,7 @@ namespace mu2e {
 
     art::InputTag _stmDigisTag;
     TH1D* _adcSpectrum;
+    TH1D* _timeSpectrum;
     TH1D* _adcSpectrumOn;
     TH1D* _adcSpectrumOff;
   };
@@ -53,36 +54,39 @@ namespace mu2e {
     art::EDAnalyzer{config},
     _stmDigisTag(config().stmDigisTag())
   {
-    consumes<STMDigiCollection>(_stmDigisTag);
+    consumes<STMMWDDigiCollection>(_stmDigisTag);
   }
 
   void PlotSTMDigisSpectrum::beginJob() {
     art::ServiceHandle<art::TFileService> tfs;
     // create TTree
-    _adcSpectrum = tfs->make<TH1D>("adcSpectrum", "ADC Time Difference; Time Difference (ns); Counts", 5000,0,5e6);
-    _adcSpectrumOn=tfs->make<TH1D>("adcSpectrumOn", "ADC Spectrum Beam On; ADC Sample Number; Counts", 5000,0,5000.0);
-    _adcSpectrumOff=tfs->make<TH1D>("adcSpectrumOff", "ADC Spectrum Beam Off; ADC Sample Number; Counts", 5000, 0, 5000.0);
-  }
+    _timeSpectrum = tfs->make<TH1D>("timeSpectrum", "ADC Time Difference; Time Difference (ns); Counts", 5000,-300,300);
+    _adcSpectrumOn=tfs->make<TH1D>("adcSpectrumOn", "ADC Spectrum Beam On; ADC Sample Number; Counts", 50000,0,50000.0);
+    _adcSpectrumOff=tfs->make<TH1D>("adcSpectrumOff", "ADC Spectrum Beam Off; ADC Sample Number; Counts", 50000, 0, 50000.0);
+    _adcSpectrum=tfs->make<TH1D>("adcSpectrum", "ADC Spectrum Full; ADC Sample Number; Counts", 50000, 0, 50000.0);
+}
 
   void PlotSTMDigisSpectrum::analyze(const art::Event& event) {
     art::ServiceHandle<art::TFileService> tfs;
-    auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
+    auto digisHandle = event.getValidHandle<STMMWDDigiCollection>(_stmDigisTag);
     //for (const auto& digi : *digisHandle) {
     const auto& digi = *digisHandle;
     int digSize = int (digi.size());
     for(int i = 0; i < digSize - 1; i++) {
-      float adcSpectrum = digi[i+1].trigTime() - digi[i].trigTime();
+      float timeSpectrum = std::fmod(digi[i+1].time() - digi[i].time(), 185);
+      _timeSpectrum->Fill(timeSpectrum);
+      float adcSpectrum = std::fabs(digi[i].energy());
       _adcSpectrum->Fill(adcSpectrum);
 
-    //float adcSpectrum = std::fabs(digi.adcs().at(0));
+    //float adcSpectrum = std::fabs(digi.energy().at(0));
     // 260 for low rate. 500k for high rate
     //for(int i = 0; i < digSize - 1; i++) {
-      if (digi[i+1].trigTime() - digi[i].trigTime() < 5e5) {
-        float adcSpectrum = std::fabs(digi[i].adcs().at(0));
+      if (std::fmod(digi[i+1].time() - digi[i].time(),185) < 100) {
+        float adcSpectrum = std::fabs(digi[i].energy());
         _adcSpectrumOn->Fill(adcSpectrum);
       }
-      else if (digi[i+1].trigTime() - digi[i].trigTime() > 5e5) {
-        float adcSpectrum = std::fabs(digi[i].adcs().at(0));
+      else if (std::fmod(digi[i+1].time() - digi[i].time(),185) > 100) {
+        float adcSpectrum = std::fabs(digi[i].energy());
         _adcSpectrumOff->Fill(adcSpectrum);
         }
         }

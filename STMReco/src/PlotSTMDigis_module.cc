@@ -1,5 +1,5 @@
 //
-// Analyzer module to create a histogram of the STMDigi energies
+// Analyzer module to create a histogram of the STMWaveformDigi energies
 //
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -16,12 +16,15 @@
 
 #include "Offline/MCDataProducts/inc/StepPointMC.hh"
 #include <utility>
+#include "Offline/Mu2eUtilities/inc/STMUtils.hh"
+#include "Offline/ProditionsService/inc/ProditionsHandle.hh"
+#include "Offline/STMConditions/inc/STMEnergyCalib.hh"
 // root
 #include "TH1F.h"
 #include "TF1.h"
 #include "TTree.h"
 
-#include "Offline/RecoDataProducts/inc/STMDigi.hh"
+#include "Offline/RecoDataProducts/inc/STMWaveformDigi.hh"
 
 using namespace std;
 using CLHEP::Hep3Vector;
@@ -32,7 +35,7 @@ namespace mu2e {
       using Name=fhicl::Name;
       using Comment=fhicl::Comment;
       struct Config {
-       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMDigiCollection")};
+       fhicl::Atom<art::InputTag> stmDigisTag{ Name("stmDigisTag"), Comment("InputTag for STMWaveformDigiCollection")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
       explicit PlotSTMDigis(const Parameters& conf);
@@ -45,13 +48,16 @@ namespace mu2e {
 
     art::InputTag _stmDigisTag;
     TH1D* _baselineMean;
+    ProditionsHandle<STMEnergyCalib> _stmEnergyCalib_h;
+    STMChannel _channel;
   };
 
   PlotSTMDigis::PlotSTMDigis(const Parameters& config )  :
     art::EDAnalyzer{config}
     ,_stmDigisTag(config().stmDigisTag())
+    ,_channel(STMUtils::getChannel(config().stmDigisTag()))
   {
-    consumes<STMDigiCollection>(_stmDigisTag);
+    consumes<STMWaveformDigiCollection>(_stmDigisTag);
   }
 
   void PlotSTMDigis::beginJob() {
@@ -61,33 +67,36 @@ namespace mu2e {
   }
 
   void PlotSTMDigis::analyze(const art::Event& event) {
+    STMEnergyCalib const& stmEnergyCalib = _stmEnergyCalib_h.get(event.id()); // get prodition
     art::ServiceHandle<art::TFileService> tfs;
-    auto digisHandle = event.getValidHandle<STMDigiCollection>(_stmDigisTag);
+    auto digisHandle = event.getValidHandle<STMWaveformDigiCollection>(_stmDigisTag);
     int j = 0;
     TString fname;
     double sampFreq = 370.370370370;
     double _ctPerNs = 1.0/(sampFreq*1e-3);
+    const auto pedestal = stmEnergyCalib.pedestal(_channel);
 
     for (const auto& digi : *digisHandle) {
       //     float baselineMean = digi.baselineMean();
       //_baselineMean->Fill(baselineMean);
 
-      if(digi.trigType().mode() == STMTriggerMode::kExternal)
+      fname = Form("digiSpectrum_%d_%d_Off", event.event(), j);
+      /*if(digi.trigType().mode() == STMTriggerMode::kExternal)
         {
            fname = Form("digiSpectrum_%d_%d_On", event.event(), j);
         }
       else
         {
            fname = Form("digiSpectrum_%d_%d_Off", event.event(), j);
-        }
+           }*/
       // Create a histogram
-      TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTime(), digi.trigTime() + digi.adcs().size()*_ctPerNs);
+      TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTimeOffset()*_ctPerNs, (digi.trigTimeOffset() + digi.adcs().size())*_ctPerNs);
 
-      //TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTime()*3.125, (digi.trigTime() + digi.adcs().size())*_ctPerNs);
+      //TH1D* hWaveform = tfs->make<TH1D>(fname, fname+";Time [ns];Samples", digi.adcs().size(), digi.trigTimeOffset()*3.125, (digi.trigTimeOffset() + digi.adcs().size())*_ctPerNs);
 
       std::cout << "Number of bins: " << digi.adcs().size() << std::endl;
-      std::cout << "Starting point: " << digi.trigTime() << std::endl;
-      std::cout << "Ending point: " << digi.trigTime() + digi.adcs().size()*3.125 << std::endl;
+      std::cout << "Starting point: " << digi.trigTimeOffset() << std::endl;
+      std::cout << "Ending point: " << digi.trigTimeOffset() + digi.adcs().size()*3.125 << std::endl;
 
       //Loop through the adcs
       int i_bin = 1;
@@ -95,11 +104,11 @@ namespace mu2e {
       /*
       std::cout << "Trig type = " << digi.trigType().data() << std::endl;
       std::cout << "Mode = " << digi.trigType().mode() << std::endl;
-      std::cout << "Trig time = " << digi.trigTime() << std::endl;
+      std::cout << "Trig time = " << digi.trigTimeOffset() << std::endl;
       */
       for (const auto& sample : digi.adcs())
         {
-          hWaveform->SetBinContent(i_bin, sample);
+          hWaveform->SetBinContent(i_bin, sample-pedestal);
           i_bin++;
         }
       j++;

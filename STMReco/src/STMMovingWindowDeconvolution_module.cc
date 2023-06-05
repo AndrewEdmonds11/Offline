@@ -62,7 +62,7 @@ namespace mu2e {
     void deconvolve(const STMWaveformDigi& waveform, std::vector<double>& deconvolved_data, const STMEnergyCalib& stmEnergyCalib);
     void differentiate(const std::vector<double>& deconvolved_data, std::vector<double>& differentiated_data);
     void average(const std::vector<double>& differentiated_data, std::vector<double>& averaged_data);
-    void calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev);
+    void calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev, const STMEnergyCalib& stmEnergyCalib, const STMWaveformDigi& waveform);
     void find_peaks(const std::vector<double>& averaged_data, std::vector<double>& peak_heights, std::vector<double>& peak_times, const double baseline_mean, const double baseline_stddev);
 
     void make_debug_histogram(const art::Event& event, int count, const STMWaveformDigi& waveform, const STMEnergyCalib& stmEnergyCalib, const std::vector<double>& deconvolved_data, const std::vector<double>& differentiated_data, const std::vector<double>& averaged_data, const double baseline_mean, const double baseline_stddev, const std::vector<double>& peak_heights, const std::vector<double>& peak_times);
@@ -131,13 +131,13 @@ namespace mu2e {
 
       double baseline_mean = 0;
       double baseline_stddev = 0;
-      calculate_baseline(averaged_data, baseline_mean, baseline_stddev);
+      calculate_baseline(averaged_data, baseline_mean, baseline_stddev, stmEnergyCalib, waveform);
 
       std::vector<double> peak_heights;
       std::vector<double> peak_times;
       find_peaks(averaged_data, peak_heights, peak_times, baseline_mean, baseline_stddev);
       for (size_t i_peak = 0; i_peak < peak_heights.size(); ++i_peak) {
-        STMMWDDigi mwd_digi(peak_times[i_peak], -1*peak_heights[i_peak]); // peak_heights are negative, make them positive here
+        STMMWDDigi mwd_digi(waveform.trigTimeOffset()+peak_times[i_peak], -1*peak_heights[i_peak]); // peak_heights are negative, make them positive here
         outputMWDDigis->push_back(mwd_digi);
       }
 
@@ -146,6 +146,7 @@ namespace mu2e {
       }
 
       ++count;
+      //break;
     }
     if (_verbosityLevel > 0) {
       std::cout << _channel.name() << ": " << outputMWDDigis->size() << " MWD digis found" << std::endl;
@@ -190,7 +191,7 @@ namespace mu2e {
     }
   }
 
-  void STMMovingWindowDeconvolution::calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev){
+  void STMMovingWindowDeconvolution::calculate_baseline(const std::vector<double>& averaged_data, double& mean, double& stddev, const STMEnergyCalib& stmEnergyCalib, const STMWaveformDigi& waveform){
 
     int k = _M;
     int nadc = averaged_data.size();
@@ -198,16 +199,30 @@ namespace mu2e {
     using namespace boost::accumulators;
     accumulator_set<double, stats<tag::mean, tag::variance> > acc_data_without_peaks;
 
+    /*if (_verbosityLevel >= 5) {
+    art::ServiceHandle<art::TFileService> tfs;
+    std::stringstream histsuffix;
+    histsuffix.str("");
+    histsuffix << "_evt" << 24 << "_wvf" << 0;
+
+    //const auto pedestal = stmEnergyCalib.pedestal(_channel);
+    const auto nsPerCt = stmEnergyCalib.nsPerCt(_channel);
+    //Binning binning = STMUtils::getBinning(waveform, _xAxis, nsPerCt);
+    //TH1D* h_averaged_peaks = tfs->make<TH1D>(("h_averaged_peaks"+histsuffix.str()).c_str(), "Averaged Peaks", binning.nbins(),binning.low(),binning.high());
+    //h_averaged_peaks->SetBinContent(0,1);
+    }*/
+
     // Remove peaks so that we can calculate the baseline of the averaged data
     while (k < nadc){
       double gradient = averaged_data[k+1] - averaged_data[k];
-      if(gradient < _thresholdgrad){ // if the gradient is too sharp (i.e. we have hit a peak)
+      if((gradient < _thresholdgrad) || (gradient > -_thresholdgrad)){ // if the gradient is too sharp (i.e. we have hit a peak)
         k = k + (_M+2*_L); // jump ahead a little bit
         continue;
       }
       else {
         acc_data_without_peaks(averaged_data[k]);
         k++;
+        //h_averaged_peaks->SetBinContent(k,averaged_data[k]);
       }
     }
 
