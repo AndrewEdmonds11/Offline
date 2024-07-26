@@ -83,9 +83,11 @@ void STMPrintFragments::analyze(const Event& event)
     // }
     auto stm_frag = static_cast<mu2e::STMFragment>(frag);
     //    std::cout << "Trigger Header Address: " << stm_frag.GetTHdr() << std::endl;
-    std::cout << "Frag #" << frag_counter << ": First 32 int16s: ";
+    std::cout << "Frag #" << frag_counter << ": EvNum: " << *(stm_frag.EvNum()) << std::endl;
+    std::cout << "Frag #" << frag_counter << ": ZPFlag: " << *(stm_frag.ZPFlag()) << std::endl;
+    std::cout << "Frag #" << frag_counter << ": First 32 int16s of data: ";
     for (size_t i = 0; i < 32; ++i) {
-      std::cout << *(stm_frag.GetTHdr()+i) << " ";
+      std::cout << *(stm_frag.DataBegin()+i) << " ";
     }
     std::cout << std::endl;
     //    std::cout << "Trigger Header Channel: " << *(stm_frag.GetTHdr()) << std::endl;
