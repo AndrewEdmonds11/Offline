@@ -84,7 +84,7 @@ void STMPrintFragments::analyze(const Event& event)
     auto stm_frag = static_cast<mu2e::STMFragment>(frag);
     //    std::cout << "Trigger Header Address: " << stm_frag.GetTHdr() << std::endl;
     std::cout << "Frag #" << frag_counter << ": EvNum: " << *(stm_frag.EvNum()) << std::endl;
-    std::cout << "Frag #" << frag_counter << ": ZPFlag: " << *(stm_frag.ZPFlag()) << std::endl;
+    std::cout << "Frag #" << frag_counter << ": DataType: " << *(stm_frag.DataType()) << std::endl;
     std::cout << "Frag #" << frag_counter << ": EvLen: " << *(stm_frag.EvLen()) << std::endl;
 
     unsigned int max_samples = (*(stm_frag.EvLen()))/100.;
