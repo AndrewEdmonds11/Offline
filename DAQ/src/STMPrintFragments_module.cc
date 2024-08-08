@@ -85,8 +85,11 @@ void STMPrintFragments::analyze(const Event& event)
     //    std::cout << "Trigger Header Address: " << stm_frag.GetTHdr() << std::endl;
     std::cout << "Frag #" << frag_counter << ": EvNum: " << *(stm_frag.EvNum()) << std::endl;
     std::cout << "Frag #" << frag_counter << ": ZPFlag: " << *(stm_frag.ZPFlag()) << std::endl;
-    std::cout << "Frag #" << frag_counter << ": First 32 int16s of data: ";
-    for (size_t i = 0; i < 32; ++i) {
+    std::cout << "Frag #" << frag_counter << ": EvLen: " << *(stm_frag.EvLen()) << std::endl;
+
+    unsigned int max_samples = (*(stm_frag.EvLen()))/100.;
+    std::cout << "Frag #" << frag_counter << ": First " << max_samples << " int16s of data: ";
+    for (size_t i = 0; i < max_samples; ++i) {
       std::cout << *(stm_frag.DataBegin()+i) << " ";
     }
     std::cout << std::endl;
