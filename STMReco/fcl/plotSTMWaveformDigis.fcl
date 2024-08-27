@@ -23,9 +23,11 @@ physics: {
   analyzers : {
     plotHPGeWaveformDigis : {
       module_type : PlotSTMWaveformDigis
-      stmWaveformDigisTag : "FromSTMTestBeamData:HPGe"
+     #stmWaveformDigisTag : "FromSTMTestBeamData:HPGe"
+      stmWaveformDigisTag : "makeSTMDigisHPGe:Raw"
+      channel : "HPGe"
       subtractPedestal : false
-      verbosityLevel : 0
+      verbosityLevel : 1
       xAxis : "event_time"
     }
     plotLaBrWaveformDigis : {
@@ -38,9 +40,11 @@ physics: {
 
     plotHPGeWaveformDigisZP : {
       module_type : PlotSTMWaveformDigis
-      stmWaveformDigisTag : "zeroSuppressHPGe"
+     #stmWaveformDigisTag : "zeroSuppressHPGe"
+      stmWaveformDigisTag : "makeSTMDigisHPGe:ZeroSuppressed"
+      channel : "HPGe"
       subtractPedestal : false
-      verbosityLevel : 0
+      verbosityLevel : 1
       xAxis : "event_time"
     }
     plotLaBrWaveformDigisZP : {
@@ -55,7 +59,9 @@ physics: {
   trigger_paths: [  ]
   anaPath : [ plotHPGeWaveformDigis, plotLaBrWaveformDigis,
     plotHPGeWaveformDigisZP, plotLaBrWaveformDigisZP ]
-  end_paths: [anaPath]
+  anaPath2 : [ plotHPGeWaveformDigis, plotHPGeWaveformDigisZP ]
+  #end_paths: [anaPath]
+  end_paths: [anaPath2]
 }
 
 services.ProditionsService.stmEnergyCalib.pedestals : @local::STMTestBeam.Conditions.pedestals

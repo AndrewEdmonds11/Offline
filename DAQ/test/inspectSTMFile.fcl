@@ -4,7 +4,8 @@
 #
 #
 # Contact person G. Pezzullo
-process_name : inspectTDAQFile
+#process_name : inspectTDAQFile
+process_name : makeSTMDigis
 
 source : {
    module_type : RootInput
@@ -20,8 +21,12 @@ physics : {
    producers : {
       makeSTMDigisHPGe : {
          module_type : STMWaveformDigisFromFragments
-	 diagLevel : 1
+         diagLevel : 0
       }
+#      makeSTMDigisHPGe : {
+#         module_type : STMWaveformDigisFromFragments
+#	 diagLevel : 1
+#      }
    }
 
    analyzers  : {
