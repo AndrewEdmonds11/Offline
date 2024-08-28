@@ -4,7 +4,8 @@
 #
 #
 # Contact person G. Pezzullo
-process_name : inspectTDAQFile
+#process_name : inspectTDAQFile
+process_name : makeSTMDigis
 
 source : {
    module_type : RootInput
@@ -18,9 +19,14 @@ source : {
 physics : {
 
    producers : {
-      # makeSTMDigisHPGe : {
-      #    module_type : STMWaveformDigisFromFragments
-      # }
+      makeSTMDigisHPGe : {
+         module_type : STMWaveformDigisFromFragments
+         diagLevel : 0
+      }
+#      makeSTMDigisHPGe : {
+#         module_type : STMWaveformDigisFromFragments
+#	 diagLevel : 1
+#      }
    }
 
    analyzers  : {
@@ -33,19 +39,21 @@ physics : {
    }
 
    #  t1 : [ makeSD ]
-#   t1 : [ makeSTMDigisHPGe ]
-   e1 : [ stm ]#, stmOutput ]
+   t1 : [ makeSTMDigisHPGe ]
+   e1 : [ stm , stmOutput ]
+   e2 : [ stmOutput ]
 
-   trigger_paths  : [ ]#t1]
-   end_paths      : [e1]
-   #  end_paths      : []
+   trigger_paths  : [t1]
+   end_paths : [e2]
+#   end_paths      : [e1]
+#   end_paths      : []
 
 }
 
 outputs : {
-   # stmOutput : {
-   #    module_type : RootOutput
-   #    fileName : "dig.stm.art"
-   #    outputCommands : [ "drop *_*_*_*", "keep mu2e::STMWaveformDigis_*_*_*" ]
-   # }
+   stmOutput : {
+      module_type : RootOutput
+      fileName : "dig.stm.art"
+      outputCommands : [ "drop *_*_*_*", "keep mu2e::STMWaveformDigis_*_*_*" ]
+   }
 }

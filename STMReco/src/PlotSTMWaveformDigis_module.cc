@@ -36,6 +36,7 @@ namespace mu2e {
         fhicl::Atom<bool> subtractPedestal{ Name("subtractPedestal"), Comment("True/False whether to subtract the pedestal before plotting")};
         fhicl::Atom<std::string> xAxis{ Name("xAxis"), Comment("Choice of x-axis unit: \"sample_number\", \"waveform_time\", or \"event_time\"") };
         fhicl::Atom<int> verbosityLevel{ Name("verbosityLevel"), Comment("Verbosity level")};
+	fhicl::Atom<std::string> channel{ Name("channel"), Comment("Select STM channel: HPGe or LaBr")};
       };
       using Parameters = art::EDAnalyzer::Table<Config>;
       explicit PlotSTMWaveformDigis(const Parameters& conf);
@@ -57,7 +58,7 @@ namespace mu2e {
     _subtractPedestal(config().subtractPedestal()),
     _xAxis(config().xAxis()),
     _verbosityLevel(config().verbosityLevel()),
-    _channel(STMUtils::getChannel(config().stmWaveformDigisTag()))
+    _channel(STMUtils::getChannel(config().channel()))
   { }
 
   void PlotSTMWaveformDigis::analyze(const art::Event& event) {
