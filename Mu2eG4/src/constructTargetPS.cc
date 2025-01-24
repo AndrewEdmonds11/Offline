@@ -51,6 +51,7 @@
 
 #include "Geant4/G4UnionSolid.hh"
 #include "Geant4/G4IntersectionSolid.hh"
+#include "Geant4/G4GDMLParser.hh"
 #include <cmath>
 using namespace std;
 
@@ -1248,6 +1249,71 @@ namespace mu2e {
 
       } //end adding support structures
     } //end ProductionTargetMaker::hayman_v_2_0
+    else if (_config.getInt("targetPS_version") == ProductionTargetMaker::from_gdml){
+
+      int verbosityLevel                  = _config.getInt("PSHayman.verbosityLevel");
+      verbosityLevel >0 &&
+        cout << __func__ << " verbosityLevel on GDML Production Target         : " << verbosityLevel  << endl;
+      G4ThreeVector _hallOriginInMu2e = parent.centerInMu2e();
+      // Create variable to avoid multiple look-up
+
+      G4GeometryOptions* geomOptions = art::ServiceHandle<GeometryService>()->geomOptions();
+
+      bool prodTargetVisible   = geomOptions->isVisible( "ProductionTarget" );
+      bool prodTargetSolid     = geomOptions->isSolid  ( "ProductionTarget" );
+      bool forceAuxEdgeVisible = geomOptions->forceAuxEdgeVisible( "ProductionTarget" );
+      bool placePV             = geomOptions->placePV( "ProductionTarget" );
+      bool doSurfaceCheck      = geomOptions->doSurfaceCheck( "ProductionTarget" );
+      //
+
+      // begin all names with ProductionTarget so when we build sensitive detectors we can make them all
+      // sensitive at once with LVname.find("ProductionTarget") !=std::string::npos
+      //
+      // Build the production target.
+      GeomHandle<ProductionTarget> tgt;
+      TubsParams prodTargetMotherParams( 0.
+                                         ,tgt->productionTargetMotherOuterRadius()
+                                         ,tgt->productionTargetMotherHalfLength());
+
+      G4ThreeVector _loclCenter(0.0,0.0,0.0);
+      G4ThreeVector zeroTranslation(0.,0.,0.);
+      G4RotationMatrix* targetRotation = reg.add(G4RotationMatrix(tgt->productionTargetRotation().inverse()));
+      if (verbosityLevel > 2){G4cout << __PRETTY_FUNCTION__ << "target rotation  = " << *targetRotation << G4endl;}
+      VolumeInfo prodTargetMotherInfo   = nestTubs( "ProductionTargetMother",
+                                                    prodTargetMotherParams,
+                                                    parent.logical->GetMaterial(),
+                                                    0,
+                                                    tgt->haymanProdTargetPosition() - parent.centerInMu2e(),
+                                                    parent,
+                                                    0,
+                                                    G4Colour::Blue(),
+                                                    "PS"
+                                                    );
+
+      G4GDMLParser parser;
+      parser.Read(_config.getString("targetPS.gdmlFileName"), false);
+      std::string targetVolName = _config.getString("targetPS.gdmlVolName");
+      G4LogicalVolume* targetVol = parser.GetVolume(targetVolName);
+      G4RotationMatrix* rot = new G4RotationMatrix(); // rotation
+      G4ThreeVector pos(0,0,0);
+      VolumeInfo targetVolInfo;
+      targetVolInfo.name = targetVolName;
+      targetVolInfo.solid = targetVol->GetSolid();
+      targetVolInfo.logical = targetVol;
+      finishNesting(targetVolInfo,
+                    targetVol->GetMaterial(),
+                    rot,
+                    pos,
+                    prodTargetMotherInfo.logical,
+                    0,
+                    prodTargetVisible,
+                    G4Colour::Red(), // color
+                    prodTargetSolid,
+                    forceAuxEdgeVisible,
+                    placePV,
+                    doSurfaceCheck,
+                    verbosityLevel>0);
+    }
   } //end constructTargetPS
 } //end namespace mu2e
 

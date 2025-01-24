@@ -1,0 +1,5 @@
+#include "Offline/Mu2eG4/geom/geom_2021_PhaseI_v03.txt"
+
+int targetPS_version = 4;
+string targetPS.gdmlFileName = "prodtgtsinglecyl.gdml";
+string targetPS.gdmlVolName = "Tube_1";
