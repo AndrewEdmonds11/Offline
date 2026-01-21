@@ -1,0 +1,12 @@
+#include "Offline/Mu2eG4/geom/geom_common.txt"
+
+string targetPS_targetCoreMaterial = "Inconel718";
+string targetPS_targetFinMaterial  = "Inconel718";
+string targetPS_spokeMaterial      = "Inconel718";
+
+// New: set the rings independently
+string targetPS_negativeEndRingMaterial = "PSVacuum";
+string targetPS_positiveEndRingMaterial = "Inconel718";
+
+// string targetPS_supportRingMaterial = "Inconel718";
+
