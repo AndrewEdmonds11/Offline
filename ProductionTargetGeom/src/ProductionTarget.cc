@@ -42,8 +42,11 @@ namespace mu2e {
                                      ,std::string targetCoreMaterial
                                      ,std::string targetFinMaterial
                                      ,std::string targetVacuumMaterial
-                                     ,std::string supportRingMaterial
-                                     ,std::string spokeMaterial
+             ,std::string supportRingMaterial
+             ,std::string negativeEndRingMaterial
+             ,std::string positiveEndRingMaterial
+             ,std::string spokeMaterial
+
                                      ,int numberOfTargetSections
                                      ,std::vector<double> startingSectionThickness
                                      ,std::vector<int> numberOfSegmentsPerSection
@@ -75,7 +78,10 @@ namespace mu2e {
     ,_targetFinMaterial(targetFinMaterial)
     ,_targetVacuumMaterial(targetVacuumMaterial)
     ,_supportRingMaterial(supportRingMaterial)
+    ,_negativeEndRingMaterial(negativeEndRingMaterial)
+    ,_positiveEndRingMaterial(positiveEndRingMaterial)
     ,_spokeMaterial(spokeMaterial)
+
     ,_numberOfTargetSections(numberOfTargetSections)
     ,_startingSectionThickness(startingSectionThickness)
     ,_numberOfSegmentsPerSection(numberOfSegmentsPerSection)

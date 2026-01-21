@@ -87,7 +87,10 @@ namespace mu2e {
     std::string targetFinMaterial()          const  {return _targetFinMaterial;}
     std::string targetVacuumMaterial()       const  {return _targetVacuumMaterial;}
     std::string supportRingMaterial()        const  {return _supportRingMaterial;}
+    std::string negativeEndRingMaterial()    const  {return _negativeEndRingMaterial;}
+    std::string positiveEndRingMaterial()    const  {return _positiveEndRingMaterial;}
     std::string spokeMaterial()              const  {return _spokeMaterial;}
+
 
     double rotHaymanX()                      const  {return _rotHaymanX;}
     double rotHaymanY()                      const  {return _rotHaymanY;}
@@ -187,7 +190,10 @@ namespace mu2e {
                      ,std::string targetFinMaterial
                      ,std::string targetVacuumMaterial
                      ,std::string supportRingMaterial
+                     ,std::string negativeEndRingMaterial
+                     ,std::string positiveEndRingMaterial
                      ,std::string spokeMaterial
+
                      ,int numberOfTargetSections
                      ,std::vector<double> startingSectionThickness
                      ,std::vector<int> numberOfSegmentsPerSection
@@ -257,7 +263,10 @@ namespace mu2e {
     std::string _targetFinMaterial;
     std::string _targetVacuumMaterial;
     std::string _supportRingMaterial;
+    std::string _negativeEndRingMaterial;
+    std::string _positiveEndRingMaterial;
     std::string _spokeMaterial;
+
     int _numberOfTargetSections;
     std::vector<double> _startingSectionThickness;
     std::vector<int> _numberOfSegmentsPerSection;

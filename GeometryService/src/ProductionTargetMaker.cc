@@ -340,7 +340,10 @@ namespace mu2e {
                             c.getString("targetPS_targetFinMaterial"),
                             c.getString("targetPS_targetVacuumMaterial"),
                             c.getString("targetPS_supportRingMaterial"),
-                            c.getString("targetPS_spokeMaterial"),
+          c.getString("targetPS_negativeEndRingMaterial", c.getString("targetPS_supportRingMaterial")),
+          c.getString("targetPS_positiveEndRingMaterial", c.getString("targetPS_supportRingMaterial")),
+                 c.getString("targetPS_spokeMaterial"),
+
                             c.getInt("targetPS_numberOfTargetSections"),
                             startingSectionThickness,
                             numberOfSegmentsPerSection,

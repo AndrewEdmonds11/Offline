@@ -440,7 +440,11 @@ namespace mu2e {
       GeomHandle<ProductionTarget> tgt;
       G4Material* prodTargetCoreMaterial = findMaterialOrThrow(tgt->targetCoreMaterial());
       G4Material* prodTargetFinMaterial  = findMaterialOrThrow(tgt->targetFinMaterial());
-      G4Material* prodTargetSupportRingMaterial = findMaterialOrThrow(tgt->supportRingMaterial());
+
+      //G4Material* prodTargetSupportRingMaterial      = findMaterialOrThrow(tgt->supportRingMaterial());
+      G4Material* prodTargetNegativeEndRingMaterial  = findMaterialOrThrow(tgt->negativeEndRingMaterial());
+      G4Material* prodTargetPositiveEndRingMaterial  = findMaterialOrThrow(tgt->positiveEndRingMaterial());
+
 
       TubsParams prodTargetMotherParams( 0.
                                          ,tgt->productionTargetMotherOuterRadius()
@@ -748,7 +752,7 @@ namespace mu2e {
           VolumeInfo ringWithCutoutNegative(name,ringTranslation,prodTargetMotherInfo.centerInWorld);
           ringWithCutoutNegative.solid = ringWithCutoutSolid.at(tgt->nHaymanFins() - 1);
           finishNesting(ringWithCutoutNegative
-                        ,prodTargetSupportRingMaterial
+                        ,prodTargetNegativeEndRingMaterial
                         ,rotRing
                         ,ringTranslation
                         ,prodTargetMotherInfo.logical
@@ -1074,7 +1078,7 @@ namespace mu2e {
           VolumeInfo ringWithCutoutPositive(name,ringTranslation,prodTargetMotherInfo.centerInWorld);
           ringWithCutoutPositive.solid = ringWithCutoutSolid.at(tgt->nHaymanFins() - 1); // what does this =  mean?
           finishNesting(ringWithCutoutPositive
-                        ,prodTargetSupportRingMaterial
+                        ,prodTargetPositiveEndRingMaterial
                         ,rotRing
                         ,ringTranslation
                         ,prodTargetMotherInfo.logical
@@ -1251,4 +1255,4 @@ namespace mu2e {
   } //end constructTargetPS
 } //end namespace mu2e
 
- // end Mu2eWorld::constructPS
+ // end Mu-7eWorld::constructPS
