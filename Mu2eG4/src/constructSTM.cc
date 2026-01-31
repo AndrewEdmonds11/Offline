@@ -652,6 +652,8 @@ namespace mu2e {
 
     //===================== Field-of-View (FOV) Collimator ==========================
 
+    // We build the FOV collimator from separate slabs
+    int n_FOV_slabs = _config.getInt("stm.FOVcollimator.nSlabs", 1); // default = 1 because this parameter did not exist in STM_v09 and earlier
     const double stmFOVCollHalfLength1 = pSTMFOVCollimatorParams.halfLength();
     const double stmFOVCollHalfWidth1  = pSTMFOVCollimatorParams.halfWidth();
     const double stmFOVCollHalfHeight1 = pSTMFOVCollimatorParams.halfHeight();
@@ -659,51 +661,100 @@ namespace mu2e {
     const double stmFOVCollHalfWidth2  = pSTMFOVCollimatorParams.linerHalfWidth();
     const double stmFOVCollHalfHeight2 = pSTMFOVCollimatorParams.linerHalfHeight();
 
-    // position of FOV collimator
     G4ThreeVector stmFOVCollPositionInMu2e1   = pSTMFOVCollimatorParams.originInMu2e();
     G4ThreeVector stmFOVCollPositionInParent1 = pSTMFOVCollimatorParams.originInMu2e() - parentCenterInMu2e;
-    // Make the box for the collimator
-    G4Box* boxFOVColl = new G4Box("boxFOVColl",stmFOVCollHalfWidth1,stmFOVCollHalfHeight1,stmFOVCollHalfLength1);
-    //Make the tube for the hole
-    G4Tubs *tubFOVColl1 = new G4Tubs("tubFOVColl1", 0.0, pSTMFOVCollimatorParams.hole1RadiusUpStr(), stmFOVCollHalfLength1+1.0, 0.0, CLHEP::twopi );
-    //Make a box to subtract so liner can fit inside
-    double buffer = 1.0;
-    G4Box* boxFOVCollLinerToSubt = nullptr;
+
     bool hasLinerCutout = pSTMFOVCollimatorParams.linerCutOutHalfLength() > 0.001; //if < 1um, ignore
-    if(hasLinerCutout) {
-      boxFOVCollLinerToSubt = new G4Box("boxFOVCollLinerToSubt",
-                                        stmFOVCollHalfWidth2+buffer,
-                                        stmFOVCollHalfHeight2+buffer,
-                                        pSTMFOVCollimatorParams.linerCutOutHalfLength()+buffer);
-    }
-    // Combine into the collimator with the liner cutout and collimation hole
-    VolumeInfo collimatorFOV;
-    collimatorFOV.name = "collimatorFOV";
-    collimatorFOV.solid = new G4SubtractionSolid(collimatorFOV.name,
-                                                 boxFOVColl,
-                                                 tubFOVColl1,
-                                                 0,
-                                                 G4ThreeVector(0.0,0.0,0.0));
-    if(hasLinerCutout) {
-      collimatorFOV.solid = new G4SubtractionSolid(collimatorFOV.name,
-                                                   collimatorFOV.solid,
-                                                   boxFOVCollLinerToSubt,
-                                                   0,
-                                                   G4ThreeVector(0.0,0.0,-1.0*(stmFOVCollHalfLength1-pSTMFOVCollimatorParams.linerCutOutHalfLength())));
-    }
     //position of liner
     G4ThreeVector stmFOVCollPositionInMu2e2   = stmFOVCollPositionInMu2e1   + G4ThreeVector(0.0,0.0, -stmFOVCollHalfLength1+2.0*pSTMFOVCollimatorParams.linerCutOutHalfLength()-stmFOVCollHalfLength2);
     G4ThreeVector stmFOVCollPositionInParent2 = stmFOVCollPositionInParent1 + G4ThreeVector(0.0,0.0, -stmFOVCollHalfLength1+2.0*pSTMFOVCollimatorParams.linerCutOutHalfLength()-stmFOVCollHalfLength2);
 
-    VolumeInfo collimatorFOVliner;
-    collimatorFOVliner.name = "collimatorFOVliner";
-    if(hasLinerCutout) {
-      // make the box for the liner
-      G4Box* boxFOVCollLiner = new G4Box("boxFOVCollLiner",stmFOVCollHalfWidth2,stmFOVCollHalfHeight2,stmFOVCollHalfLength2);
+
+    // Make the boxes for the collimator
+    char name[50];
+    const double slab_half_length = stmFOVCollHalfLength1 / n_FOV_slabs;
+    const double slab_liner_half_length = stmFOVCollHalfLength2 / n_FOV_slabs;
+    for (int i_slab = 0; i_slab < n_FOV_slabs; ++i_slab) {
+
+      G4ThreeVector stmFOVCollSlabPositionInParent1 = stmFOVCollPositionInParent1
+        + G4ThreeVector(0, 0, -stmFOVCollHalfLength1 + (i_slab)*2*slab_half_length + slab_half_length);
+      G4ThreeVector stmFOVCollSlabPositionInParent2 = stmFOVCollPositionInParent2
+        + G4ThreeVector(0, 0, -stmFOVCollHalfLength1 + (i_slab)*2*slab_liner_half_length + slab_liner_half_length);
+      snprintf(name,50, "boxFOVCollSlab%d",i_slab);
+      G4Box* boxFOVColl = new G4Box(name,stmFOVCollHalfWidth1,stmFOVCollHalfHeight1,slab_half_length);
       //Make the tube for the hole
-      G4Tubs *tubFOVCollLiner1 = new G4Tubs("tubFOVCollLiner1", 0.0, pSTMFOVCollimatorParams.hole1RadiusUpStr(), stmFOVCollHalfLength2+1.0, 0.0, CLHEP::twopi );
-      // Combine into the liner with hole
-      collimatorFOVliner.solid = new G4SubtractionSolid(collimatorFOVliner.name,boxFOVCollLiner,tubFOVCollLiner1,0,G4ThreeVector(0.0,0.0,0.0));
+      snprintf(name,50, "tubFOVColl1Slab%d",i_slab);
+      G4Tubs *tubFOVColl1 = new G4Tubs(name, 0.0, pSTMFOVCollimatorParams.hole1RadiusUpStr(), slab_half_length+1.0, 0.0, CLHEP::twopi );
+
+      //Make a box to subtract so liner can fit inside
+      double buffer = 1.0;
+      G4Box* boxFOVCollLinerToSubt = nullptr;
+      if(hasLinerCutout) {
+        snprintf(name,50, "boxFOVCollLinerToSubtSlab%d",i_slab);
+        boxFOVCollLinerToSubt = new G4Box(name,
+                                          stmFOVCollHalfWidth2+buffer,
+                                          stmFOVCollHalfHeight2+buffer,
+                                          pSTMFOVCollimatorParams.linerCutOutHalfLength()/n_FOV_slabs +buffer);
+      }
+      // Combine into the collimator with the liner cutout and collimation hole
+      VolumeInfo collimatorFOV;
+      snprintf(name, 50, "collimatorFOVSlab%d", i_slab);
+      collimatorFOV.name = name;
+      collimatorFOV.solid = new G4SubtractionSolid(collimatorFOV.name,
+                                                 boxFOVColl,
+                                                 tubFOVColl1,
+                                                 0,
+                                                 G4ThreeVector(0.0,0.0,0.0));
+      if(hasLinerCutout) {
+        collimatorFOV.solid = new G4SubtractionSolid(collimatorFOV.name,
+                                                     collimatorFOV.solid,
+                                                     boxFOVCollLinerToSubt,
+                                                     0,
+                                                     G4ThreeVector(0.0,0.0,-1.0*(stmFOVCollHalfLength1-pSTMFOVCollimatorParams.linerCutOutHalfLength())));
+      }
+
+      VolumeInfo collimatorFOVliner;
+      snprintf(name, 50, "collimatorFOVlinerSlab%d", i_slab);
+      collimatorFOVliner.name = name;
+      if(hasLinerCutout) {
+        // make the box for the liner
+        snprintf(name, 50, "boxFOVCollLinerSlab%d", i_slab);
+        G4Box* boxFOVCollLiner = new G4Box(name,stmFOVCollHalfWidth2,stmFOVCollHalfHeight2,slab_liner_half_length);
+        //Make the tube for the hole
+        snprintf(name, 50, "tubFOVCollLiner1Slab%d", i_slab);
+        G4Tubs *tubFOVCollLiner1 = new G4Tubs(name, 0.0, pSTMFOVCollimatorParams.hole1RadiusUpStr(), slab_liner_half_length+1.0, 0.0, CLHEP::twopi );
+        // Combine into the liner with hole
+        collimatorFOVliner.solid = new G4SubtractionSolid(collimatorFOVliner.name,boxFOVCollLiner,tubFOVCollLiner1,0,G4ThreeVector(0.0,0.0,0.0));
+      }
+
+      if (pSTMFOVCollimatorParams.build()){
+        finishNesting(collimatorFOV,
+                      findMaterialOrThrow(pSTMFOVCollimatorParams.material()),
+                      0,
+                      stmFOVCollSlabPositionInParent1,
+                      parentInfo.logical,
+                      0,
+                      STMisVisible,
+                      G4Colour::Magenta(),
+                      STMisSolid,
+                      forceAuxEdgeVisible,
+                      placePV,
+                      doSurfaceCheck);
+        if(pSTMFOVCollimatorParams.linerBuild()) {
+          finishNesting(collimatorFOVliner,
+                        findMaterialOrThrow(pSTMFOVCollimatorParams.linerMaterial()),
+                        0,
+                        stmFOVCollSlabPositionInParent2,
+                        parentInfo.logical,
+                        0,
+                        STMisVisible,
+                        G4Colour::Magenta(),
+                        STMisSolid,
+                        forceAuxEdgeVisible,
+                        placePV,
+                        doSurfaceCheck);
+        }
+      }
     }
 
     // Liner sheets to cover the upstream corner of FOV collimator
@@ -729,31 +780,7 @@ namespace mu2e {
     G4ThreeVector stmFOVCollPositionInParent4 = stmFOVCollPositionInParent1 + G4ThreeVector(0.0,-stmFOVCollHalfHeight2-cornerHeight/2.0, -stmFOVCollHalfLength1-pSTMShieldPipeParams.linerWidth()/2.0);
 
     if (pSTMFOVCollimatorParams.build()){
-      finishNesting(collimatorFOV,
-                    findMaterialOrThrow(pSTMFOVCollimatorParams.material()),
-                    0,
-                    stmFOVCollPositionInParent1,
-                    parentInfo.logical,
-                    0,
-                    STMisVisible,
-                    G4Colour::Magenta(),
-                    STMisSolid,
-                    forceAuxEdgeVisible,
-                    placePV,
-                    doSurfaceCheck);
       if(pSTMFOVCollimatorParams.linerBuild()) {
-        finishNesting(collimatorFOVliner,
-                      findMaterialOrThrow(pSTMFOVCollimatorParams.linerMaterial()),
-                      0,
-                      stmFOVCollPositionInParent2,
-                      parentInfo.logical,
-                      0,
-                      STMisVisible,
-                      G4Colour::Magenta(),
-                      STMisSolid,
-                      forceAuxEdgeVisible,
-                      placePV,
-                      doSurfaceCheck);
         finishNesting(FOVlinerH,
                       findMaterialOrThrow(pSTMFOVCollimatorParams.linerMaterial()),
                       0,
