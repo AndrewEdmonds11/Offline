@@ -653,7 +653,16 @@ namespace mu2e {
     //===================== Field-of-View (FOV) Collimator ==========================
 
     // We build the FOV collimator from separate slabs
-    int n_FOV_slabs = _config.getInt("stm.FOVcollimator.nSlabs", 1); // default = 1 because this parameter did not exist in STM_v09 and earlier
+    const unsigned int n_FOV_slabs = _config.getInt("stm.FOVcollimator.nSlabs", 1); // default = 1 because this parameter did not exist in STM_v09 and earlier
+    std::vector<double> holeOffsetsX, holeOffsetsY;
+    _config.getVectorDouble("stm.FOVcollimator.holeOffsetsX", holeOffsetsX, std::vector<double>(1, 0.0)); // default no offset in one slab
+    _config.getVectorDouble("stm.FOVcollimator.holeOffsetsY", holeOffsetsY, std::vector<double>(1, 0.0));
+    if (holeOffsetsY.size() != n_FOV_slabs) {
+      throw cet::exception("GEOM")<< " STM: incorrect number of elements in stm.FOVcollimator.holeOffsetsY (" << holeOffsetsY.size() << "). It should be equal to the number of slabs (" << n_FOV_slabs << "). \n" ;
+    }
+    else if  (holeOffsetsX.size() != n_FOV_slabs) {
+      throw cet::exception("GEOM")<< " STM: incorrect number of elements in stm.FOVcollimator.holeOffsetsX (" << holeOffsetsX.size() << "). It should be equal to the number of slabs (" << n_FOV_slabs << "). \n" ;
+    }
     const double stmFOVCollHalfLength1 = pSTMFOVCollimatorParams.halfLength();
     const double stmFOVCollHalfWidth1  = pSTMFOVCollimatorParams.halfWidth();
     const double stmFOVCollHalfHeight1 = pSTMFOVCollimatorParams.halfHeight();
@@ -674,7 +683,7 @@ namespace mu2e {
     char name[50];
     const double slab_half_length = stmFOVCollHalfLength1 / n_FOV_slabs;
     const double slab_liner_half_length = stmFOVCollHalfLength2 / n_FOV_slabs;
-    for (int i_slab = 0; i_slab < n_FOV_slabs; ++i_slab) {
+    for (unsigned int i_slab = 0; i_slab < n_FOV_slabs; ++i_slab) {
 
       G4ThreeVector stmFOVCollSlabPositionInParent1 = stmFOVCollPositionInParent1
         + G4ThreeVector(0, 0, -stmFOVCollHalfLength1 + (i_slab)*2*slab_half_length + slab_half_length);
@@ -697,6 +706,7 @@ namespace mu2e {
                                           pSTMFOVCollimatorParams.linerCutOutHalfLength()/n_FOV_slabs +buffer);
       }
       // Combine into the collimator with the liner cutout and collimation hole
+      G4ThreeVector holeOffset(holeOffsetsX[i_slab], holeOffsetsY[i_slab], 0.0);
       VolumeInfo collimatorFOV;
       snprintf(name, 50, "collimatorFOVSlab%d", i_slab);
       collimatorFOV.name = name;
@@ -704,13 +714,13 @@ namespace mu2e {
                                                  boxFOVColl,
                                                  tubFOVColl1,
                                                  0,
-                                                 G4ThreeVector(0.0,0.0,0.0));
+                                                 holeOffset);
       if(hasLinerCutout) {
         collimatorFOV.solid = new G4SubtractionSolid(collimatorFOV.name,
                                                      collimatorFOV.solid,
                                                      boxFOVCollLinerToSubt,
                                                      0,
-                                                     G4ThreeVector(0.0,0.0,-1.0*(stmFOVCollHalfLength1-pSTMFOVCollimatorParams.linerCutOutHalfLength())));
+                                                     holeOffset + G4ThreeVector(0.0,0.0,-1.0*(stmFOVCollHalfLength1-pSTMFOVCollimatorParams.linerCutOutHalfLength())));
       }
 
       VolumeInfo collimatorFOVliner;

@@ -1,4 +1,4 @@
-#include "Offline/Mu2eG4/geom/STM_v09.txt"
+#include "Offline/Mu2eG4/geom/geom_common.txt"
 
 // We now construct the FOV collimator in its separate pieces
 // For backwards compatbility, we will continue to use the previous parameters
@@ -8,9 +8,9 @@
 // To model the roughness of the inner surface of the collimator hole,
 // we will offset the hole in each slab
 //
-int stm.FOVcollimator.nSlabs = 5;
-vector<double> stm.FOVcollimator.holeOffsetsX = { 1, 0 };
-vector<double> stm.FOVcollimator.holeOffsetsY = { 1, 0 };
+int stm.FOVcollimator.nSlabs = 2;
+vector<double> stm.FOVcollimator.holeOffsetsX = { 0, 0 };
+vector<double> stm.FOVcollimator.holeOffsetsY = { 0, 0 };
 
 // This tells emacs to view this file in c++ mode
 // Local Variables:
