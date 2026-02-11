@@ -248,6 +248,10 @@ namespace mu2e {
         //        std::cout << " adding Hayman in GeometryService" << std::endl;
         addDetector(PSShieldMaker::make(*_config, ps.psEndRefPoint(), prodTarget.haymanProdTargetPosition()));
           } else
+        if (_config->getString("targetPS_model") == "Stickman_v_1_0"){
+          //        std::cout << " adding Hayman in GeometryService" << std::endl;
+          addDetector(PSShieldMaker::make(*_config, ps.psEndRefPoint(), prodTarget.haymanProdTargetPosition())); // TODO: change to stickman?
+          } else
         {throw cet::exception("GEOM") << " " << static_cast<char const*>(__func__) << " illegal production target version specified in GeometryService_service = " << _config->getString("targetPS_model")  << std::endl;}
 
 

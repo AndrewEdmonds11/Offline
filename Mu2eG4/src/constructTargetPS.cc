@@ -1091,6 +1091,58 @@ namespace mu2e {
         constructSupportStructure(prodTargetMotherInfo, _config);
       } //end adding support structures
     } //end ProductionTargetMaker::hayman_v_2_0
+
+    else if (_config.getInt("targetPS_version") == ProductionTargetMaker::stickman_v_1_0){
+
+      int verbosityLevel                  = _config.getInt("PSStickman.verbosityLevel");
+      verbosityLevel >0 &&
+        cout << __func__ << " verbosityLevel on Stickman2.0              : " << verbosityLevel  << endl;
+      G4ThreeVector _hallOriginInMu2e = parent.centerInMu2e();
+      // Create variable to avoid multiple look-up
+
+      // uncomment below when variables are used
+      // G4GeometryOptions* geomOptions = art::ServiceHandle<GeometryService>()->geomOptions();
+      // bool prodTargetVisible   = geomOptions->isVisible( "ProductionTarget" );
+      // bool prodTargetSolid     = geomOptions->isSolid  ( "ProductionTarget" );
+      // bool forceAuxEdgeVisible = geomOptions->forceAuxEdgeVisible( "ProductionTarget" );
+      // bool placePV             = geomOptions->placePV( "ProductionTarget" );
+      // bool doSurfaceCheck      = geomOptions->doSurfaceCheck( "ProductionTarget" );
+      // //
+
+      // begin all names with ProductionTarget so when we build sensitive detectors we can make them all
+      // sensitive at once with LVname.find("ProductionTarget") !=std::string::npos
+      //
+      // Build the production target.
+      GeomHandle<ProductionTarget> tgt;
+      // uncomment below when variables are used
+      // G4Material* prodTargetCoreMaterial = findMaterialOrThrow(tgt->targetCoreMaterial());
+      // G4Material* prodTargetFinMaterial  = findMaterialOrThrow(tgt->targetFinMaterial());
+      // G4Material* prodTargetSupportRingMaterial = findMaterialOrThrow(tgt->supportRingMaterial());
+
+      TubsParams prodTargetMotherParams( 0.
+                                         ,tgt->productionTargetMotherOuterRadius()
+                                         ,tgt->productionTargetMotherHalfLength());
+
+      G4ThreeVector _loclCenter(0.0,0.0,0.0);
+      G4ThreeVector zeroTranslation(0.,0.,0.);
+      G4RotationMatrix* targetRotation = reg.add(G4RotationMatrix(tgt->productionTargetRotation().inverse()));
+      if (verbosityLevel > 2){G4cout << __PRETTY_FUNCTION__ << "target rotation  = " << *targetRotation << G4endl;}
+      VolumeInfo prodTargetMotherInfo   = nestTubs( "ProductionTargetMother",
+                                                    prodTargetMotherParams,
+                                                    parent.logical->GetMaterial(),
+                                                    0,
+                                                    tgt->haymanProdTargetPosition() - parent.centerInMu2e(),
+                                                    parent,
+                                                    0,
+                                                    G4Colour::Blue(),
+                                                    "PS"
+                                                    );
+
+      //Add support structures for the production target
+      if(tgt->supportsBuild()) {
+        constructSupportStructure(prodTargetMotherInfo, _config);
+      } //end adding support structures
+    } //end ProductionTargetMaker::stickman_v_2_0
   } //end constructTargetPS
 
   void constructSupportStructure(VolumeInfo const & prodTargetMotherInfo, SimpleConfig const & _config) {

@@ -19,7 +19,10 @@ namespace mu2e {
         //        std::cout << " making Hayman in Maker" << std::endl;
         return makeHayman_v_2_0(c, solenoidOffset);
           } else
-        {throw cet::exception("GEOM") << " illegal production target version specified = " << c.getInt("targetPS_version")  << std::endl;}
+        if (c.getString("targetPS_model") == "Stickman_v_1_0"){
+          return makeStickman_v_1_0(c, solenoidOffset);
+        }
+        else {throw cet::exception("GEOM") << " illegal production target version specified = " << c.getInt("targetPS_version")  << std::endl;}
     return 0;
 
   }
@@ -390,5 +393,10 @@ namespace mu2e {
     return tgtPS;
   }
 
+  std::unique_ptr<ProductionTarget> ProductionTargetMaker::makeStickman_v_1_0(const SimpleConfig& c, double solenoidOffset){
+
+    // TODO: fill this function with the Stickman
+    return makeHayman_v2_0(c, solenoidOffset);
+  }
 
 } // namespace mu2e
