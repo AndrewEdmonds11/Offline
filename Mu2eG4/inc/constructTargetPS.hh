@@ -18,6 +18,7 @@ namespace mu2e {
 
   void constructTargetPS(VolumeInfo const & parent, SimpleConfig const & _config);
 
+  void constructSupportStructure(VolumeInfo const & prodTargetMotherInfo, SimpleConfig const & _config);
 }
 
 #endif /* Mu2eG4_constructTargetPS_hh */
